@@ -19,7 +19,6 @@ struct RefreshTokenRequest {
     refresh_token: String,
     client_id: String,
     scope: String,
-    audience: String,
 }
 
 /// Raw Tesla token from API
@@ -62,7 +61,6 @@ async fn test_renew_token() {
         client_id: "ownerapi".into(),
         // scope has user_data removed but vehicle_device_data added
         scope: "openid offline_access vehicle_device_data vehicle_cmds vehicle_charging_cmds energy_device_data energy_cmds".into(),
-        audience: "penguins_rule".to_string()
     };
 
     // Test code that use `CONTEXT` for a specific route
