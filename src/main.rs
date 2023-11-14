@@ -12,9 +12,10 @@ use axum::{
     Extension, Json, Router,
 };
 use chrono::Utc;
-use fake_luxury_api::tokens::{self, RefreshClaims};
+use fake_luxury_api::tokens;
 use fake_luxury_api::TeslaResponse;
 use std::{collections::HashSet, sync::Arc};
+use tracing::error;
 
 use fake_luxury_api::{auth, errors};
 
@@ -34,8 +35,9 @@ async fn main() {
     };
 
     let app = Router::new()
-        .route("/oauth2/v3/token", post(renew_token))
-        .layer(from_fn_with_state(config.clone(), auth::refresh_token))
+        .route("/dummy", post(dummy_handler))
+        .layer(from_fn_with_state(config.clone(), auth::access_token))
+        .route("/oauth2/v3/token", post(token_handler))
         .with_state(config);
 
     #[allow(clippy::expect_used)]
@@ -45,30 +47,49 @@ async fn main() {
         .expect("Could not start server");
 }
 
-#[derive(serde::Deserialize, Eq, PartialEq)]
-enum GrantType {
-    #[serde(rename = "authorization_code")]
-    AuthorizationCode,
-    #[serde(rename = "refresh_token")]
-    RefreshToken,
-    #[serde(rename = "client_credentials")]
-    ClientCredentials,
-}
 #[allow(dead_code)]
 #[derive(serde::Deserialize)]
-struct TokenRenewRequest {
-    grant_type: GrantType,
-    client_id: Option<String>,
-    client_secret: Option<String>,
-    code: Option<String>,
-    redirect_uri: Option<String>,
-    scope: Option<String>,
-    audience: Option<String>,
+struct AuthorizationCodeRequest {
+    client_id: String,
+    client_secret: String,
+    code: String,
+    redirect_uri: String,
+    scope: String,
+    audience: String,
+}
+
+#[allow(dead_code)]
+#[derive(serde::Deserialize)]
+struct RefreshTokenRequest {
+    refresh_token: String,
+    client_id: String,
+    scope: String,
+}
+
+#[allow(dead_code)]
+#[derive(serde::Deserialize)]
+struct ClientCredentialsRequest {
+    client_id: String,
+    client_secret: String,
+    scope: String,
+    audience: String,
+}
+
+// #[allow(dead_code)]
+#[derive(serde::Deserialize)]
+#[serde(tag = "grant_type")]
+enum TokenRequest {
+    #[serde(rename = "authorization_code")]
+    AuthorizationCode(AuthorizationCodeRequest),
+    #[serde(rename = "refresh_token")]
+    RefreshToken(RefreshTokenRequest),
+    #[serde(rename = "client_credentials")]
+    ClientCredentials(ClientCredentialsRequest),
 }
 
 /// Raw Tesla token from API
 #[derive(serde::Serialize)]
-pub struct TokenRenewResult {
+pub struct TokenResult {
     access_token: String,
     refresh_token: String,
     id_token: String,
@@ -76,23 +97,26 @@ pub struct TokenRenewResult {
     expires_in: u64,
 }
 
-async fn renew_token(
-    State(config): State<Arc<tokens::Config>>,
-    Extension(_claims): Extension<Arc<RefreshClaims>>,
-    Json(body): Json<TokenRenewRequest>,
-) -> Result<Json<TeslaResponse<TokenRenewResult>>, errors::ResponseError> {
-    if body.grant_type != GrantType::RefreshToken {
-        return Err(errors::ResponseError::not_implemented(
-            "We only support refresh_token grant type for now.".to_string(),
-        ));
-    }
+fn renew_token(
+    request: &RefreshTokenRequest,
+    config: &tokens::Config,
+) -> Result<TokenResult, errors::ResponseError> {
+    let claims = match tokens::validate_refresh_token(&request.refresh_token, config) {
+        Ok(claims) => claims,
+        Err(err) => {
+            error!("Invalid token: {}", err);
+            return Err(errors::ResponseError::TokenExpired);
+        }
+    };
 
-    let scopes = body.scope.map_or_else(HashSet::new, |scope| {
-        scope
-            .split(' ')
-            .map(std::string::ToString::to_string)
-            .collect::<HashSet<_>>()
-    });
+    let scopes: HashSet<String> = request
+        .scope
+        .split(' ')
+        .map(std::string::ToString::to_string)
+        .collect::<HashSet<_>>()
+        .intersection(&claims.scopes)
+        .cloned()
+        .collect();
 
     if !scopes.contains("openid") {
         // We require openid scope for now.
@@ -108,8 +132,8 @@ async fn renew_token(
         ));
     }
 
-    let token = tokens::Token::new(&config, &scopes, body.audience.as_deref()).map_err(|err| {
-        errors::ResponseError::internal_error(format!("Could not generate token: {err:?}"))
+    let token = tokens::Token::new(config, &scopes).map_err(|err| {
+        errors::ResponseError::internal_error(format!("Could not create token: {err:?}"))
     })?;
 
     let expires_in = (token.expires_at - Utc::now()).num_seconds();
@@ -117,7 +141,7 @@ async fn renew_token(
         errors::ResponseError::internal_error(format!("Could not convert timestamp: {err:?}"))
     })?;
 
-    let response = TokenRenewResult {
+    let response = TokenResult {
         access_token: token.access_token,
         refresh_token: token.refresh_token,
         id_token: "zzzz".into(),
@@ -125,5 +149,27 @@ async fn renew_token(
         expires_in,
     };
 
-    Ok(Json(TeslaResponse::success(response)))
+    Ok(response)
+}
+
+async fn token_handler(
+    State(config): State<Arc<tokens::Config>>,
+    Json(body): Json<TokenRequest>,
+) -> Result<Json<TokenResult>, errors::ResponseError> {
+    match body {
+        TokenRequest::RefreshToken(request) => Ok(Json(renew_token(&request, &config)?)),
+        TokenRequest::ClientCredentials(_) | TokenRequest::AuthorizationCode(_) => {
+            Err(errors::ResponseError::not_implemented(
+                "We only support refresh_token grant type for now.".to_string(),
+            ))
+        }
+    }
+}
+
+async fn dummy_handler(
+    Extension(_): Extension<Arc<tokens::AccessClaims>>,
+    State(_config): State<Arc<tokens::Config>>,
+    Json(_body): Json<()>,
+) -> Result<Json<TeslaResponse<()>>, errors::ResponseError> {
+    Ok(Json(TeslaResponse::success(())))
 }

@@ -14,8 +14,10 @@ struct User {
 }
 
 #[derive(Serialize)]
-struct RenewTokenRequest {
+struct RefreshTokenRequest {
     grant_type: String,
+    refresh_token: String,
+    client_id: String,
     scope: String,
     audience: String,
 }
@@ -31,11 +33,6 @@ pub struct TokenResponse {
     expires_in: u64,
 }
 
-#[derive(Deserialize, Debug)]
-pub struct RenewTokenResponse {
-    response: TokenResponse,
-}
-
 #[tokio::test]
 async fn test_renew_token() {
     // This config must match the server.
@@ -47,7 +44,7 @@ async fn test_renew_token() {
         "openid",
         "offline_access",
         "user_data",
-        "vehicle_device_data",
+        //"vehicle_device_data",
         "vehicle_cmds",
         "vehicle_charging_cmds",
         "energy_device_data",
@@ -57,11 +54,13 @@ async fn test_renew_token() {
     .map(|s| s.to_string())
     .collect::<HashSet<String>>();
 
-    let audience = "penguins_rule".to_string();
-    let token = tokens::Token::new(&config, &scopes, Some(&audience)).unwrap();
+    let token = tokens::Token::new(&config, &scopes).unwrap();
 
-    let body = RenewTokenRequest {
+    let body = RefreshTokenRequest {
         grant_type: "refresh_token".into(),
+        refresh_token: token.refresh_token,
+        client_id: "ownerapi".into(),
+        // scope has user_data removed but vehicle_device_data added
         scope: "openid offline_access vehicle_device_data vehicle_cmds vehicle_charging_cmds energy_device_data energy_cmds".into(),
         audience: "penguins_rule".to_string()
     };
@@ -69,10 +68,10 @@ async fn test_renew_token() {
     // Test code that use `CONTEXT` for a specific route
     let request = Request::post(path!["oauth2", "v3", "token"])
         .with_header("Content-Type", "application/json")
-        .with_header("Authorization", format!("Bearer {}", token.refresh_token))
+        // .with_header("Authorization", format!("Bearer {}", token.refresh_token))
         .with_body(body);
 
-    let new_token: RenewTokenResponse = CONTEXT
+    let new_token: TokenResponse = CONTEXT
         .run(request)
         .await
         .expect_status(StatusCode::OK)
@@ -80,12 +79,14 @@ async fn test_renew_token() {
 
     // assert!(new_token.access_token != token.access_token);
     // assert!(new_token.refresh_token != token.refresh_token);
-    assert!(new_token.response.expires_in > 0);
+    assert!(new_token.expires_in > 0);
 
+    // We do not expect user_data or vehicle_device_data to be in the scopes
     let expected_scopes = [
         "openid",
         "offline_access",
-        "vehicle_device_data",
+        // "user_data"
+        // "vehicle_device_data",
         "vehicle_cmds",
         "vehicle_charging_cmds",
         "energy_device_data",
@@ -95,14 +96,11 @@ async fn test_renew_token() {
     .map(|s| s.to_string())
     .collect::<HashSet<String>>();
 
-    let access_claims = validate_access_token(&new_token.response.access_token, &config).unwrap();
+    let access_claims = validate_access_token(&new_token.access_token, &config).unwrap();
     assert_eq!(access_claims.purpose, tokens::Purpose::Access);
     assert_eq!(access_claims.scopes, expected_scopes);
-    assert_eq!(access_claims.aud, Some("penguins_rule".to_string()));
 
-    let refresh_claims =
-        validate_refresh_token(&new_token.response.refresh_token, &config).unwrap();
+    let refresh_claims = validate_refresh_token(&new_token.refresh_token, &config).unwrap();
     assert_eq!(refresh_claims.purpose, tokens::Purpose::Refresh);
     assert_eq!(refresh_claims.scopes, expected_scopes);
-    assert_eq!(access_claims.aud, Some("penguins_rule".to_string()));
 }

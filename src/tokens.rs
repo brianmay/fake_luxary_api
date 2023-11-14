@@ -26,8 +26,6 @@ pub struct AccessClaims {
     pub exp: usize,
     /// The scopes of the token
     pub scopes: HashSet<String>,
-    /// The audience of the token
-    pub aud: Option<String>,
 }
 
 /// Our claims struct for refresh tokens
@@ -39,8 +37,6 @@ pub struct RefreshClaims {
     pub exp: usize,
     /// The scopes of the token
     pub scopes: HashSet<String>,
-    /// The audience of the token
-    pub aud: Option<String>,
 }
 
 /// The configuration for Tokens
@@ -77,11 +73,7 @@ impl Token {
     /// # Errors
     ///
     /// If the token cannot be generated, an error will be returned.
-    pub fn new(
-        config: &Config,
-        scopes: &HashSet<String>,
-        audience: Option<&str>,
-    ) -> Result<Self, TokenGenerationError> {
+    pub fn new(config: &Config, scopes: &HashSet<String>) -> Result<Self, TokenGenerationError> {
         let encoding_key = EncodingKey::from_secret(config.secret.as_ref());
         let expires_at = Utc::now() + Duration::minutes(10);
 
@@ -94,7 +86,6 @@ impl Token {
                 purpose: Purpose::Access,
                 exp: timestamp,
                 scopes: scopes.clone(),
-                aud: audience.map(std::string::ToString::to_string),
             },
             &encoding_key,
         )?;
@@ -105,7 +96,6 @@ impl Token {
                 purpose: Purpose::Refresh,
                 exp: timestamp,
                 scopes: scopes.clone(),
-                aud: audience.map(std::string::ToString::to_string),
             },
             &encoding_key,
         )?;
@@ -142,8 +132,7 @@ pub fn validate_access_token(
     config: &Config,
 ) -> Result<AccessClaims, TokenValidationError> {
     let decoding_key = DecodingKey::from_secret(config.secret.as_ref());
-    let mut validation = Validation::new(Algorithm::HS256);
-    validation.set_audience(&["penguins_rule".to_string()]);
+    let validation = Validation::new(Algorithm::HS256);
     let claims: AccessClaims = decode(token, &decoding_key, &validation)?.claims;
     if claims.purpose != Purpose::Access {
         return Err(TokenValidationError::WrongTokenType);
@@ -161,8 +150,7 @@ pub fn validate_refresh_token(
     config: &Config,
 ) -> Result<RefreshClaims, TokenValidationError> {
     let decoding_key = DecodingKey::from_secret(config.secret.as_ref());
-    let mut validation = Validation::new(Algorithm::HS256);
-    validation.set_audience(&["penguins_rule".to_string()]);
+    let validation = Validation::new(Algorithm::HS256);
     let claims: RefreshClaims = decode(token, &decoding_key, &validation)?.claims;
     if claims.purpose != Purpose::Refresh {
         return Err(TokenValidationError::WrongTokenType);

@@ -34,26 +34,3 @@ pub async fn access_token<B: Send>(
         }
     }
 }
-
-/// Extract the current refresh token claims from the request
-///
-/// # Errors
-///
-/// Returns `ResponseError::TokenExpired` if the token is invalid or expired
-pub async fn refresh_token<B: Send>(
-    State(config): State<Arc<tokens::Config>>,
-    AuthBearer(token): AuthBearer,
-    mut req: Request<B>,
-    next: Next<B>,
-) -> Result<Response, ResponseError> {
-    match tokens::validate_refresh_token(&token, &config) {
-        Ok(claims) => {
-            req.extensions_mut().insert(Arc::new(claims));
-            Ok(next.run(req).await)
-        }
-        Err(err) => {
-            error!("Invalid token: {}", err);
-            Err(ResponseError::TokenExpired)
-        }
-    }
-}

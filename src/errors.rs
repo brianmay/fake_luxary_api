@@ -22,6 +22,9 @@ pub enum ResponseError {
 
     /// The operation has not been implemented yet
     NotImplemented(String),
+
+    /// The user doesn't have the required scopes
+    MissingScopes,
 }
 
 impl ResponseError {
@@ -56,6 +59,10 @@ impl IntoResponse for ResponseError {
             Self::NotImplemented(msg) => {
                 let error = error("Not Implemented", format!("Not Implemented: {msg}"));
                 (StatusCode::NOT_IMPLEMENTED, Json(error)).into_response()
+            }
+            Self::MissingScopes => {
+                let error = error("Unauthorized missing scopes", "Unauthorized missing scopes");
+                (StatusCode::FORBIDDEN, Json(error)).into_response()
             }
         }
     }
