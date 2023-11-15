@@ -1,6 +1,7 @@
 //! Token Handlers
 
 use std::collections::HashSet;
+use std::str::FromStr;
 use std::sync::Arc;
 
 use axum::extract::State;
@@ -10,6 +11,7 @@ use tracing::error;
 
 use crate::errors;
 use crate::tokens;
+use crate::tokens::ScopeEnum;
 
 /// A request to refresh an existing token using an authorization code
 #[allow(dead_code)]
@@ -81,23 +83,25 @@ fn renew_token(
         }
     };
 
-    let scopes: HashSet<String> = request
+    let scopes: HashSet<tokens::ScopeEnum> = request
         .scope
         .split(' ')
         .map(std::string::ToString::to_string)
-        .collect::<HashSet<_>>()
+        .map(|s| ScopeEnum::from_str(&s))
+        .collect::<Result<HashSet<_>, ()>>()
+        .map_err(|()| errors::ResponseError::internal_error("Could not parse scopes".to_string()))?
         .intersection(&claims.scopes)
-        .cloned()
+        .copied()
         .collect();
 
-    if !scopes.contains("openid") {
+    if !scopes.contains(&tokens::ScopeEnum::Openid) {
         // We require openid scope for now.
         return Err(errors::ResponseError::not_implemented(
             "We require openid scope for now.".to_string(),
         ));
     }
 
-    if !scopes.contains("offline_access") {
+    if !scopes.contains(&tokens::ScopeEnum::OfflineAccess) {
         // We require offline_access scope for now.
         return Err(errors::ResponseError::not_implemented(
             "We require offline_access scope for now.".to_string(),

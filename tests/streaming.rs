@@ -72,6 +72,7 @@ async fn test_streaming() {
     let msg = serde_json::to_string(&msg).unwrap();
     socket.send(Message::Text(msg)).await.unwrap();
 
+    let mut iteration = 0;
     while let Some(msg) = socket.next().await {
         match msg {
             Ok(Message::Text(msg)) => {
@@ -101,7 +102,11 @@ async fn test_streaming() {
                 println!("Error: {:?}", e);
             }
         }
-        break;
+
+        if iteration > 1 {
+            break;
+        }
+        iteration += 1;
     }
 
     socket

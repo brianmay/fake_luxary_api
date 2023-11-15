@@ -35,18 +35,17 @@ async fn test_renew_token() {
     };
 
     let scopes = [
-        "openid",
-        "offline_access",
-        "user_data",
-        //"vehicle_device_data",
-        "vehicle_cmds",
-        "vehicle_charging_cmds",
-        "energy_device_data",
-        "energy_cmds",
+        tokens::ScopeEnum::Openid,
+        tokens::ScopeEnum::OfflineAccess,
+        tokens::ScopeEnum::UserData,
+        // tokens::ScopeEnum::VehicleDeviceData,
+        tokens::ScopeEnum::VehicleCmds,
+        tokens::ScopeEnum::VehicleChargingCmds,
+        tokens::ScopeEnum::EnergyDeviceData,
+        tokens::ScopeEnum::EnergyCmds,
     ]
     .into_iter()
-    .map(|s| s.to_string())
-    .collect::<HashSet<String>>();
+    .collect::<HashSet<tokens::ScopeEnum>>();
 
     let token = tokens::Token::new(&config, &scopes).unwrap();
 
@@ -76,18 +75,17 @@ async fn test_renew_token() {
 
     // We do not expect user_data or vehicle_device_data to be in the scopes
     let expected_scopes = [
-        "openid",
-        "offline_access",
-        // "user_data"
-        // "vehicle_device_data",
-        "vehicle_cmds",
-        "vehicle_charging_cmds",
-        "energy_device_data",
-        "energy_cmds",
+        tokens::ScopeEnum::Openid,
+        tokens::ScopeEnum::OfflineAccess,
+        // tokens::ScopeEnum::UserData,
+        // tokens::ScopeEnum::VehicleDeviceData,
+        tokens::ScopeEnum::VehicleCmds,
+        tokens::ScopeEnum::VehicleChargingCmds,
+        tokens::ScopeEnum::EnergyDeviceData,
+        tokens::ScopeEnum::EnergyCmds,
     ]
     .into_iter()
-    .map(|s| s.to_string())
-    .collect::<HashSet<String>>();
+    .collect::<HashSet<tokens::ScopeEnum>>();
 
     let access_claims = validate_access_token(&new_token.access_token, &config).unwrap();
     assert_eq!(access_claims.purpose, tokens::Purpose::Access);

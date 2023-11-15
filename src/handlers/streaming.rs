@@ -208,7 +208,10 @@ async fn handle_socket(mut socket: WebSocket, config: Arc<tokens::Config>) {
         return;
     };
 
-    if !claims.scopes.contains("vehicle_device_data") {
+    if !claims
+        .scopes
+        .contains(&tokens::ScopeEnum::VehicleDeviceData)
+    {
         error!("Invalid scope!");
         send_error(
             &mut socket,

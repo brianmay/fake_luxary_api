@@ -8,18 +8,17 @@ pub fn get_token_for_all_scopes() -> tokens::Token {
     };
 
     let scopes = [
-        "openid",
-        "offline_access",
-        "user_data",
-        "vehicle_device_data",
-        "vehicle_cmds",
-        "vehicle_charging_cmds",
-        "energy_device_data",
-        "energy_cmds",
+        tokens::ScopeEnum::Openid,
+        tokens::ScopeEnum::OfflineAccess,
+        tokens::ScopeEnum::UserData,
+        tokens::ScopeEnum::VehicleDeviceData,
+        tokens::ScopeEnum::VehicleCmds,
+        tokens::ScopeEnum::VehicleChargingCmds,
+        tokens::ScopeEnum::EnergyDeviceData,
+        tokens::ScopeEnum::EnergyCmds,
     ]
     .into_iter()
-    .map(|s| s.to_string())
-    .collect::<HashSet<String>>();
+    .collect::<HashSet<tokens::ScopeEnum>>();
 
     tokens::Token::new(&config, &scopes).unwrap()
 }

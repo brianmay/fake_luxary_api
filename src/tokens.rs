@@ -1,6 +1,6 @@
 //! Tokens for authenticating with the API
 
-use std::collections::HashSet;
+use std::{collections::HashSet, str::FromStr};
 
 use chrono::{DateTime, Duration, Utc};
 use jsonwebtoken::{decode, encode, Algorithm, DecodingKey, EncodingKey, Header, Validation};
@@ -25,7 +25,54 @@ pub struct AccessClaims {
     /// The expiration time of the token
     pub exp: usize,
     /// The scopes of the token
-    pub scopes: HashSet<String>,
+    pub scopes: HashSet<ScopeEnum>,
+}
+
+/// The possible scopes of the token
+#[derive(Debug, Serialize, Deserialize, Eq, PartialEq, Hash, Clone, Copy)]
+#[serde(rename_all = "snake_case")]
+pub enum ScopeEnum {
+    /// The user's openid
+    Openid,
+
+    /// The user's offline access
+    OfflineAccess,
+
+    /// The user's data
+    UserData,
+
+    /// The user's vehicle device data
+    VehicleDeviceData,
+
+    /// The user's vehicle commands
+    VehicleCmds,
+
+    /// The user's vehicle charging commands
+    VehicleChargingCmds,
+
+    /// The user's energy device data
+    EnergyDeviceData,
+
+    /// The user's energy commands
+    EnergyCmds,
+}
+
+impl FromStr for ScopeEnum {
+    type Err = ();
+
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        match s {
+            "openid" => Ok(Self::Openid),
+            "offline_access" => Ok(Self::OfflineAccess),
+            "user_data" => Ok(Self::UserData),
+            "vehicle_device_data" => Ok(Self::VehicleDeviceData),
+            "vehicle_cmds" => Ok(Self::VehicleCmds),
+            "vehicle_charging_cmds" => Ok(Self::VehicleChargingCmds),
+            "energy_device_data" => Ok(Self::EnergyDeviceData),
+            "energy_cmds" => Ok(Self::EnergyCmds),
+            _ => Err(()),
+        }
+    }
 }
 
 /// Our claims struct for refresh tokens
@@ -36,7 +83,7 @@ pub struct RefreshClaims {
     /// The expiration time of the token
     pub exp: usize,
     /// The scopes of the token
-    pub scopes: HashSet<String>,
+    pub scopes: HashSet<ScopeEnum>,
 }
 
 /// The configuration for Tokens
@@ -73,7 +120,7 @@ impl Token {
     /// # Errors
     ///
     /// If the token cannot be generated, an error will be returned.
-    pub fn new(config: &Config, scopes: &HashSet<String>) -> Result<Self, TokenGenerationError> {
+    pub fn new(config: &Config, scopes: &HashSet<ScopeEnum>) -> Result<Self, TokenGenerationError> {
         let encoding_key = EncodingKey::from_secret(config.secret.as_ref());
         let expires_at = Utc::now() + Duration::minutes(10);
 

@@ -97,7 +97,10 @@ fn get_vehicles() -> Vec<Vehicle> {
 pub async fn vehicles_handler(
     Extension(config): Extension<Arc<tokens::AccessClaims>>,
 ) -> Result<Json<TeslaResponse<Vec<Vehicle>>>, ResponseError> {
-    if !config.scopes.contains("vehicle_device_data") {
+    if !config
+        .scopes
+        .contains(&tokens::ScopeEnum::VehicleDeviceData)
+    {
         return Err(ResponseError::MissingScopes);
     }
 
@@ -116,7 +119,10 @@ pub async fn vehicle_handler(
     Extension(config): Extension<Arc<tokens::AccessClaims>>,
     Path(id): Path<u64>,
 ) -> Result<Json<TeslaResponse<Vehicle>>, ResponseError> {
-    if !config.scopes.contains("vehicle_device_data") {
+    if !config
+        .scopes
+        .contains(&tokens::ScopeEnum::VehicleDeviceData)
+    {
         return Err(ResponseError::MissingScopes);
     }
 
