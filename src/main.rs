@@ -5,17 +5,13 @@
 #![deny(clippy::unwrap_used)]
 #![deny(clippy::expect_used)]
 
-use axum::{
-    extract::{FromRef, State},
-    middleware::from_fn_with_state,
-    routing::post,
-    Extension, Json, Router,
-};
-use fake_luxury_api::TeslaResponse;
+use axum::routing::get;
+use axum::{extract::FromRef, middleware::from_fn_with_state, routing::post, Router};
+use fake_luxury_api::handlers::vehicles::{vehicle_handler, vehicles_handler};
 use fake_luxury_api::{handlers::tokens::token_handler, tokens};
 use std::sync::Arc;
 
-use fake_luxury_api::{auth, errors};
+use fake_luxury_api::auth;
 
 #[derive(Clone, FromRef)]
 struct Config {
@@ -33,7 +29,8 @@ async fn main() {
     };
 
     let app = Router::new()
-        .route("/dummy", post(dummy_handler))
+        .route("/api/1/vehicles", get(vehicles_handler))
+        .route("/api/1/vehicles/:id", get(vehicle_handler))
         .layer(from_fn_with_state(config.clone(), auth::access_token))
         .route("/oauth2/v3/token", post(token_handler))
         .with_state(config);
@@ -43,12 +40,4 @@ async fn main() {
         .serve(app.into_make_service())
         .await
         .expect("Could not start server");
-}
-
-async fn dummy_handler(
-    Extension(_): Extension<Arc<tokens::AccessClaims>>,
-    State(_config): State<Arc<tokens::Config>>,
-    Json(_body): Json<()>,
-) -> Result<Json<TeslaResponse<()>>, errors::ResponseError> {
-    Ok(Json(TeslaResponse::success(())))
 }

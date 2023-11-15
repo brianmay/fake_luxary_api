@@ -25,6 +25,9 @@ pub enum ResponseError {
 
     /// The user doesn't have the required scopes
     MissingScopes,
+
+    /// The requested resource was not found
+    NotFound,
 }
 
 impl ResponseError {
@@ -63,6 +66,10 @@ impl IntoResponse for ResponseError {
             Self::MissingScopes => {
                 let error = error("Unauthorized missing scopes", "Unauthorized missing scopes");
                 (StatusCode::FORBIDDEN, Json(error)).into_response()
+            }
+            Self::NotFound => {
+                let error = error("Not Found", "Not Found");
+                (StatusCode::NOT_FOUND, Json(error)).into_response()
             }
         }
     }

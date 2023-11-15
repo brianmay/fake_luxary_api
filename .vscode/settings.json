@@ -1,8 +1,10 @@
 {
     "cSpell.words": [
         "axum",
+        "backseat",
         "chrono",
         "cmds",
+        "color",
         "jsonwebtoken",
         "restest",
         "thiserror"

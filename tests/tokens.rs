@@ -8,11 +8,6 @@ use serde::{Deserialize, Serialize};
 
 const CONTEXT: Context = Context::new().with_port(4080);
 
-#[derive(Debug, Serialize, Deserialize)]
-struct User {
-    id: String,
-}
-
 #[derive(Serialize)]
 struct RefreshTokenRequest {
     grant_type: String,
