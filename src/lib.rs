@@ -12,6 +12,7 @@ use serde::{Deserialize, Serialize};
 
 pub mod auth;
 pub mod errors;
+pub mod handlers;
 pub mod tokens;
 
 /// A response from the Tesla API
