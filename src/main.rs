@@ -7,9 +7,11 @@
 
 use axum::routing::get;
 use axum::{extract::FromRef, middleware::from_fn_with_state, routing::post, Router};
+use fake_luxury_api::handlers::streaming::ws_handler;
 use fake_luxury_api::handlers::vehicles::{vehicle_handler, vehicles_handler};
 use fake_luxury_api::{handlers::tokens::token_handler, tokens};
 use std::sync::Arc;
+use tower_http::trace::TraceLayer;
 
 use fake_luxury_api::auth;
 
@@ -20,7 +22,9 @@ struct Config {
 
 #[tokio::main]
 async fn main() {
-    tracing_subscriber::fmt::init();
+    tracing_subscriber::fmt()
+        .with_max_level(tracing::Level::DEBUG)
+        .init();
 
     let config = Config {
         token: Arc::new(tokens::Config {
@@ -32,8 +36,10 @@ async fn main() {
         .route("/api/1/vehicles", get(vehicles_handler))
         .route("/api/1/vehicles/:id", get(vehicle_handler))
         .layer(from_fn_with_state(config.clone(), auth::access_token))
+        .route("/streaming/", get(ws_handler))
         .route("/oauth2/v3/token", post(token_handler))
-        .with_state(config);
+        .with_state(config)
+        .layer(TraceLayer::new_for_http());
 
     #[allow(clippy::expect_used)]
     axum::Server::bind(&"[::]:4080".parse().expect("Could not bind to port"))
