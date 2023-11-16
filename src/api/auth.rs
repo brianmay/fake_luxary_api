@@ -1,17 +1,28 @@
-//! Token Handlers
+//! Auth API Handlers
 
 use std::collections::HashSet;
 use std::str::FromStr;
 use std::sync::Arc;
 
 use axum::extract::State;
+use axum::routing::post;
 use axum::Json;
+use axum::Router;
 use chrono::Utc;
 use tracing::error;
 
 use crate::errors;
 use crate::tokens;
 use crate::tokens::ScopeEnum;
+use crate::Config;
+
+/// Retrieve router for Tesla auth API
+///
+pub fn router(config: &Config) -> Router {
+    Router::new()
+        .route("/oauth2/v3/token", post(token_handler))
+        .with_state(config.clone())
+}
 
 /// A request to refresh an existing token using an authorization code
 #[allow(dead_code)]

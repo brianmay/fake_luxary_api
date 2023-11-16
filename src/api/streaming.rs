@@ -7,12 +7,25 @@ use axum::{
         State,
     },
     response::IntoResponse,
+    routing::get,
+    Router,
 };
 use serde::{Deserialize, Serialize};
 use tokio::time::sleep;
 use tracing::{debug, error};
 
-use crate::tokens::{self, validate_access_token};
+use crate::{
+    tokens::{self, validate_access_token},
+    Config,
+};
+
+/// Retrieve router for Tesla streaming API
+///
+pub fn router(config: &Config) -> Router {
+    Router::new()
+        .route("/streaming/", get(ws_handler))
+        .with_state(config.clone())
+}
 
 #[derive(Deserialize, Serialize, Debug)]
 #[serde(rename_all = "snake_case")]

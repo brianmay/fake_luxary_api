@@ -6,14 +6,22 @@
 #![deny(clippy::unwrap_used)]
 #![deny(clippy::expect_used)]
 
-use std::collections::HashMap;
+use std::{collections::HashMap, sync::Arc};
 
+use axum::extract::FromRef;
 use serde::{Deserialize, Serialize};
 
-pub mod auth;
+pub mod api;
 pub mod errors;
-pub mod handlers;
+pub mod middleware;
 pub mod tokens;
+
+/// The server configuration
+#[derive(Clone, FromRef)]
+pub struct Config {
+    /// The token configuration
+    pub token: Arc<tokens::Config>,
+}
 
 /// A response from the Tesla API
 #[derive(Serialize, Deserialize, Debug)]
