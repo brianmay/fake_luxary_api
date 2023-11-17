@@ -4,13 +4,18 @@ use std::sync::Arc;
 
 use tokio::sync::{broadcast, mpsc, oneshot};
 
-use crate::{errors, types};
+use crate::{
+    errors,
+    types::{self, VehicleData},
+};
 pub mod server;
 
 type WakeUpResponse = Result<(), errors::ResponseError>;
+type VehicleDataResponse = Result<VehicleData, errors::ResponseError>;
 
 enum Command {
     WakeUp(oneshot::Sender<WakeUpResponse>),
+    GetVehicleData(oneshot::Sender<types::VehicleData>),
 }
 
 /// A handle to the simulator
@@ -36,6 +41,25 @@ impl CommandSender {
             .await
             .map_err(|_| errors::ResponseError::DeviceNotAvailable)?
             .map_err(|_| errors::ResponseError::DeviceNotAvailable)?
+    }
+
+    /// Get the vehicle data
+    ///
+    /// # Errors
+    ///
+    /// If the simulator is dead, an error will be returned.
+    /// If the request times out, an error will be returned.
+    pub async fn get_vehicle_data(&self) -> VehicleDataResponse {
+        let (tx, rx) = oneshot::channel();
+        self.0
+            .send(Command::GetVehicleData(tx))
+            .await
+            .map_err(|_| errors::ResponseError::DeviceNotAvailable)?;
+
+        tokio::time::timeout(TIMEOUT, rx)
+            .await
+            .map_err(|_| errors::ResponseError::DeviceNotAvailable)?
+            .map_err(|_| errors::ResponseError::DeviceNotAvailable)
     }
 }
 

@@ -1,6 +1,7 @@
 use http::StatusCode;
 use restest::{assert_body_matches, path, Context, Request};
 use serde::Deserialize;
+use serde_json::Value;
 
 mod common;
 
@@ -39,6 +40,12 @@ struct VehiclesResponse {
 #[derive(Debug, Deserialize)]
 struct VehicleResponse {
     response: Vehicle,
+}
+
+#[allow(dead_code)]
+#[derive(Debug, Deserialize)]
+struct VehicleDataResponse {
+    response: Value,
 }
 
 #[tokio::test]
@@ -213,4 +220,23 @@ async fn test_wakeup() {
             }
         },
     );
+}
+
+#[tokio::test]
+async fn test_vehicle_data() {
+    let token = common::get_token_for_all_scopes();
+
+    // Test code that use `CONTEXT` for a specific route
+    let request = Request::get(path!["api", 1, "vehicles", 123_456_000, "vehicle_data"])
+        .with_header("Content-Type", "application/json")
+        .with_header("Authorization", format!("Bearer {}", token.access_token))
+        .with_body(());
+
+    let vehicle: VehicleDataResponse = CONTEXT
+        .run(request)
+        .await
+        .expect_status(StatusCode::OK)
+        .await;
+
+    assert_body_matches!(vehicle, VehicleDataResponse { response: _ },);
 }

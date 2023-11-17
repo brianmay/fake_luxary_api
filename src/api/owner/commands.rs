@@ -10,7 +10,7 @@ use axum::{
 use crate::{
     errors::ResponseError,
     tokens,
-    types::{self, VehicleData},
+    types::{self, VehicleDefinition},
     TeslaResponse,
 };
 
@@ -25,7 +25,7 @@ pub async fn wake_up_handler(
     State(vehicles): State<Arc<Vec<types::Vehicle>>>,
     Extension(config): Extension<Arc<tokens::AccessClaims>>,
     Path(id): Path<u64>,
-) -> Result<Json<TeslaResponse<VehicleData>>, ResponseError> {
+) -> Result<Json<TeslaResponse<VehicleDefinition>>, ResponseError> {
     if !config.scopes.contains(&tokens::ScopeEnum::VehicleCmds) {
         return Err(ResponseError::MissingScopes);
     }

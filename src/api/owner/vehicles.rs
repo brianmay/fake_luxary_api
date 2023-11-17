@@ -9,7 +9,7 @@ use std::sync::Arc;
 use crate::{
     errors::ResponseError,
     tokens,
-    types::{self, VehicleData},
+    types::{self, VehicleDefinition},
     TeslaResponse,
 };
 
@@ -23,7 +23,7 @@ use crate::{
 pub async fn vehicles_handler(
     State(vehicles): State<Arc<Vec<types::Vehicle>>>,
     Extension(config): Extension<Arc<tokens::AccessClaims>>,
-) -> Result<Json<TeslaResponse<Vec<types::VehicleData>>>, ResponseError> {
+) -> Result<Json<TeslaResponse<Vec<types::VehicleDefinition>>>, ResponseError> {
     if !config
         .scopes
         .contains(&tokens::ScopeEnum::VehicleDeviceData)
@@ -31,7 +31,7 @@ pub async fn vehicles_handler(
         return Err(ResponseError::MissingScopes);
     }
 
-    let vehicles: Vec<VehicleData> = vehicles.iter().map(|v| v.data.clone()).collect();
+    let vehicles: Vec<VehicleDefinition> = vehicles.iter().map(|v| v.data.clone()).collect();
     Ok(Json(TeslaResponse::success(vehicles)))
 }
 
@@ -46,7 +46,7 @@ pub async fn vehicle_handler(
     State(vehicles): State<Arc<Vec<types::Vehicle>>>,
     Extension(config): Extension<Arc<tokens::AccessClaims>>,
     Path(id): Path<u64>,
-) -> Result<Json<TeslaResponse<types::VehicleData>>, ResponseError> {
+) -> Result<Json<TeslaResponse<types::VehicleDefinition>>, ResponseError> {
     if !config
         .scopes
         .contains(&tokens::ScopeEnum::VehicleDeviceData)
@@ -62,4 +62,32 @@ pub async fn vehicle_handler(
         .clone();
 
     Ok(Json(TeslaResponse::success(vehicle)))
+}
+
+/// Get live vehicle data
+///
+/// # Errors
+///
+/// Returns a 403 Forbidden if the token does not have the required scopes.
+#[allow(clippy::unused_async)]
+pub async fn get_vehicle_data_handler(
+    State(vehicles): State<Arc<Vec<types::Vehicle>>>,
+    Extension(config): Extension<Arc<tokens::AccessClaims>>,
+    Path(id): Path<u64>,
+) -> Result<Json<TeslaResponse<types::VehicleData>>, ResponseError> {
+    if !config
+        .scopes
+        .contains(&tokens::ScopeEnum::VehicleDeviceData)
+    {
+        return Err(ResponseError::MissingScopes);
+    }
+
+    let vehicle = vehicles
+        .iter()
+        .find(|v| v.data.id == id)
+        .ok_or(ResponseError::NotFound)?;
+
+    let data = vehicle.command.get_vehicle_data().await?;
+
+    Ok(Json(TeslaResponse::success(data)))
 }

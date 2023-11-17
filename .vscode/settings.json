@@ -1,15 +1,36 @@
 {
     "cSpell.words": [
+        "ADOFIN",
+        "autopark",
         "axum",
         "backseat",
+        "bitmask",
+        "bools",
         "chrono",
         "cmds",
         "color",
+        "conn",
+        "COUS",
+        "dashcam",
+        "DRLH",
+        "GLFR",
+        "homelink",
+        "hvac",
         "jsonwebtoken",
+        "KQED",
+        "modely",
+        "MOSFET",
+        "Newshour",
         "oneshot",
         "ownerapi",
+        "PBSB",
+        "perc",
         "restest",
+        "STCP",
         "thiserror",
-        "tungstenite"
+        "tirepressure",
+        "tpms",
+        "tungstenite",
+        "ZCST"
     ]
 }
