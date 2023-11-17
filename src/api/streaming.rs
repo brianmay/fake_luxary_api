@@ -291,18 +291,9 @@ async fn handle_socket(
 
                     Some(Err(err)) => {
                         debug!("Error receiving message: {err}");
-                        break;
                     }
                     None =>  {
-                        debug!("Client disconnected");
-                        send_error(
-                            &mut socket,
-                            tag.to_string(),
-                            ErrorType::VehicleDisconnected,
-                            "Vehicle disconnected".to_string(),
-                        )
-                        .await;
-                        _ = socket.close().await;
+                        debug!("Simulator disconnected");
                         break;
                     }
                 }

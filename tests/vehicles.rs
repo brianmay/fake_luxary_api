@@ -108,14 +108,14 @@ async fn test_vehicle_1() {
         .with_header("Authorization", format!("Bearer {}", token.access_token))
         .with_body(());
 
-    let vehicles: VehicleResponse = CONTEXT
+    let vehicle: VehicleResponse = CONTEXT
         .run(request)
         .await
         .expect_status(StatusCode::OK)
         .await;
 
     assert_body_matches!(
-        vehicles,
+        vehicle,
         VehicleResponse {
             response: Vehicle {
                 id: 123_456_789,
@@ -147,14 +147,53 @@ async fn test_vehicle_2() {
         .with_header("Authorization", format!("Bearer {}", token.access_token))
         .with_body(());
 
-    let vehicles: VehicleResponse = CONTEXT
+    let vehicle: VehicleResponse = CONTEXT
         .run(request)
         .await
         .expect_status(StatusCode::OK)
         .await;
 
     assert_body_matches!(
-        vehicles,
+        vehicle,
+        VehicleResponse {
+            response: Vehicle {
+                id: 123_456_000,
+                vehicle_id: _,
+                vin: _,
+                display_name: _,
+                option_codes: _,
+                color: _,
+                tokens: _,
+                state: _,
+                in_service: _,
+                id_s: _,
+                calendar_enabled: _,
+                api_version: _,
+                backseat_token: _,
+                backseat_token_updated_at: _,
+            }
+        },
+    );
+}
+
+#[tokio::test]
+async fn test_wakeup() {
+    let token = common::get_token_for_all_scopes();
+
+    // Test code that use `CONTEXT` for a specific route
+    let request = Request::post(path!["api", 1, "vehicles", 123_456_000, "wake_up"])
+        .with_header("Content-Type", "application/json")
+        .with_header("Authorization", format!("Bearer {}", token.access_token))
+        .with_body(());
+
+    let vehicle: VehicleResponse = CONTEXT
+        .run(request)
+        .await
+        .expect_status(StatusCode::OK)
+        .await;
+
+    assert_body_matches!(
+        vehicle,
         VehicleResponse {
             response: Vehicle {
                 id: 123_456_000,
