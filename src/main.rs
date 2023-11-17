@@ -8,7 +8,7 @@
 use axum::Router;
 use fake_luxury_api::{
     api::{auth, owner, streaming},
-    tokens,
+    data, tokens,
 };
 use std::sync::Arc;
 use tower_http::trace::TraceLayer;
@@ -25,6 +25,7 @@ async fn main() {
         token: Arc::new(tokens::Config {
             secret: "mom-said-yes".to_string(),
         }),
+        vehicles: Arc::new(data::get_vehicles()),
     };
 
     let app = Router::new()

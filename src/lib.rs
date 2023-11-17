@@ -12,15 +12,20 @@ use axum::extract::FromRef;
 use serde::{Deserialize, Serialize};
 
 pub mod api;
+pub mod data;
 pub mod errors;
 pub mod middleware;
 pub mod tokens;
+pub mod types;
 
 /// The server configuration
 #[derive(Clone, FromRef)]
 pub struct Config {
     /// The token configuration
     pub token: Arc<tokens::Config>,
+
+    /// The dummy test vehicles
+    pub vehicles: Arc<Vec<types::Vehicle>>,
 }
 
 /// A response from the Tesla API
