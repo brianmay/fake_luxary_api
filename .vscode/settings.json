@@ -6,7 +6,10 @@
         "cmds",
         "color",
         "jsonwebtoken",
+        "oneshot",
+        "ownerapi",
         "restest",
-        "thiserror"
+        "thiserror",
+        "tungstenite"
     ]
 }

@@ -1,5 +1,5 @@
 //! Streaming handler
-use std::{sync::Arc, time::Duration};
+use std::sync::Arc;
 
 use axum::{
     extract::{
@@ -11,11 +11,12 @@ use axum::{
     Router,
 };
 use serde::{Deserialize, Serialize};
-use tokio::time::sleep;
+use tokio::select;
 use tracing::{debug, error};
 
 use crate::{
     tokens::{self, validate_access_token},
+    types::{StreamingData, Vehicle},
     Config,
 };
 
@@ -42,22 +43,6 @@ enum Fields {
     Range,
     EstRange,
     Heading,
-}
-
-struct StreamingData {
-    time: u64,
-    speed: u32,
-    odometer: u64,
-    soc: u8,
-    elevation: u32,
-    est_heading: u16,
-    est_lat: f32,
-    est_lng: f32,
-    power: String,
-    shift_state: String,
-    range: u32,
-    est_range: u32,
-    heading: u16,
 }
 
 fn deserialize_field_names(str: &str) -> Vec<Fields> {
@@ -123,7 +108,7 @@ enum TeslaInMessage {
     DataSubscribeOauth {
         token: String,
         value: String,
-        tag: String,
+        tag: u64,
     },
 }
 
@@ -134,7 +119,7 @@ enum TeslaOutMessage {
     ControlHello { connection_timeout: u64 },
 
     #[serde(rename = "data:update")]
-    DataUpdate { tag: String, value: String },
+    DataUpdate { tag: u64, value: String },
 
     #[serde(rename = "data:error")]
     DataError {
@@ -152,16 +137,21 @@ enum TeslaOutMessage {
 #[allow(clippy::unused_async)]
 pub async fn ws_handler(
     State(config): State<Arc<tokens::Config>>,
+    State(vehicles): State<Arc<Vec<Vehicle>>>,
     ws: WebSocketUpgrade,
 ) -> impl IntoResponse {
     // finalize the upgrade process by returning upgrade callback.
     // we can customize the callback by sending additional info such as address.
-    ws.on_upgrade(|socket| handle_socket(socket, config))
+    ws.on_upgrade(|socket| handle_socket(socket, config, vehicles))
 }
 
-/// Actual websocket statemachine (one will be spawned per connection)
+/// Actual websocket state machine (one will be spawned per connection)
 #[allow(clippy::too_many_lines)]
-async fn handle_socket(mut socket: WebSocket, config: Arc<tokens::Config>) {
+async fn handle_socket(
+    mut socket: WebSocket,
+    config: Arc<tokens::Config>,
+    vehicles: Arc<Vec<Vehicle>>,
+) {
     // receive single message from a client (we can either receive or send with socket).
     // this will likely be the Pong for our Ping or a hello message from client.
     // waiting for message from a client will block this task, but will not block other client's
@@ -249,36 +239,75 @@ async fn handle_socket(mut socket: WebSocket, config: Arc<tokens::Config>) {
         return;
     }
 
+    let maybe_vehicle = vehicles.iter().find(|v| v.data.id == tag);
+
+    let Some(vehicle) = maybe_vehicle else {
+        error!("Invalid vehicle id!");
+        send_error(
+            &mut socket,
+            "0".to_string(),
+            ErrorType::ClientError,
+            "Invalid vehicle id".to_string(),
+        )
+        .await;
+        _ = socket.close().await;
+        return;
+    };
+
+    let mut rx = vehicle.stream.subscribe();
+
     loop {
-        let data = StreamingData {
-            time: 0,
-            speed: 0,
-            odometer: 0,
-            soc: 0,
-            elevation: 0,
-            est_heading: 0,
-            est_lat: 0.0,
-            est_lng: 0.0,
-            power: String::new(),
-            shift_state: String::new(),
-            range: 0,
-            est_range: 0,
-            heading: 0,
-        };
+        select! {
+            data = rx.recv() => {
+                let data = match data {
+                    Ok(data) => data,
+                    Err(_err) => {
+                        debug!("Vehicle disconnected");
+                        send_error(
+                            &mut socket,
+                            tag.to_string(),
+                            ErrorType::VehicleDisconnected,
+                            "Vehicle disconnected".to_string(),
+                        )
+                        .await;
+                        _ = socket.close().await;
+                        return;
+                    }
+                };
+                let value = serialize_fields(&fields, &data);
+                let msg = TeslaOutMessage::DataUpdate { tag, value };
 
-        let value = serialize_fields(&fields, &data);
-        let msg = TeslaOutMessage::DataUpdate {
-            tag: tag.clone(),
-            value,
-        };
+                debug!("Sending: {msg:?}");
+                if send_message(&mut socket, msg).await.is_err() {
+                    _ = socket.close().await;
+                    return;
+                }
+            }
+            msg = socket.recv() => {
+                match msg {
+                    Some(Ok(msg)) => {
+                        debug!("Unexpected Received: {msg:?}");
+                    },
 
-        debug!("Sending: {msg:?}");
-        if send_message(&mut socket, msg).await.is_err() {
-            _ = socket.close().await;
-            return;
+                    Some(Err(err)) => {
+                        debug!("Error receiving message: {err}");
+                        break;
+                    }
+                    None =>  {
+                        debug!("Client disconnected");
+                        send_error(
+                            &mut socket,
+                            tag.to_string(),
+                            ErrorType::VehicleDisconnected,
+                            "Vehicle disconnected".to_string(),
+                        )
+                        .await;
+                        _ = socket.close().await;
+                        break;
+                    }
+                }
+            }
         }
-
-        sleep(Duration::from_secs(5)).await;
     }
 }
 
@@ -292,8 +321,6 @@ async fn send_message(socket: &mut WebSocket, message: TeslaOutMessage) -> Resul
         Ok(())
     } else {
         error!("Could not send a message!");
-        // no Error here since the only thing we can do is to close the connection.
-        // If we can not send messages, there is no way to salvage the statemachine anyway.
         Err(())
     }
 }

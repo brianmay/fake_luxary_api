@@ -1,11 +1,11 @@
 //! Dummy test data
 
-use crate::types::Vehicle;
+use crate::types::{Vehicle, VehicleData};
 
 /// Get test vehicles
 #[must_use]
 pub fn get_vehicles() -> Vec<Vehicle> {
-    vec![Vehicle {
+    let data = [VehicleData {
         id: 123_456_789,
         vehicle_id: 123_456_789,
         vin: "5YJ3E1EA7JF000000".to_string(),
@@ -20,7 +20,7 @@ pub fn get_vehicles() -> Vec<Vehicle> {
         api_version: 6,
         backseat_token: None,
         backseat_token_updated_at: None,
-    }, Vehicle {
+    }, VehicleData {
         id: 123_456_000,
         vehicle_id: 123_456_789,
         vin: "5YJ3E1EA7JF000000".to_string(),
@@ -35,5 +35,7 @@ pub fn get_vehicles() -> Vec<Vehicle> {
         api_version: 6,
         backseat_token: None,
         backseat_token_updated_at: None,
-    }]
+    }];
+
+    data.into_iter().map(Vehicle::new).collect()
 }

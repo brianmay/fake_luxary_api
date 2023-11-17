@@ -11,10 +11,11 @@ use tracing::error;
 pub enum ResponseError {
     /// If the date_request or command is unknown
     InvalidCommand,
+
     /// If the new_field data isn't valid
     InvalidField,
 
-    /// If the token is expired
+    /// OAuth token has expired
     TokenExpired,
 
     /// An error occurred while processing the request
@@ -23,11 +24,17 @@ pub enum ResponseError {
     /// The operation has not been implemented yet
     NotImplemented(String),
 
-    /// The user doesn't have the required scopes
+    /// You do not have access to this resource, do you have the required scopes?
     MissingScopes,
 
-    /// The requested resource was not found
+    /// The requested resource does not exist
     NotFound,
+
+    /// If the vehicle is not "online" when a request is made.
+    DeviceNotAvailable,
+
+    /// Vehicle responded with an error - might need a reboot, OTA update, or service
+    DeviceUnexpectedResponse,
 }
 
 impl ResponseError {
@@ -70,6 +77,15 @@ impl IntoResponse for ResponseError {
             Self::NotFound => {
                 let error = error("Not Found", "Not Found");
                 (StatusCode::NOT_FOUND, Json(error)).into_response()
+            }
+            Self::DeviceNotAvailable => {
+                error!("Device not available");
+                (StatusCode::REQUEST_TIMEOUT, "Device not available").into_response()
+            }
+            Self::DeviceUnexpectedResponse => {
+                error!("Device responded with an error");
+                let code = StatusCode::try_from(540).unwrap_or(StatusCode::INTERNAL_SERVER_ERROR);
+                (code, "Device responded with an error").into_response()
             }
         }
     }

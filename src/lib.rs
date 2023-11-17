@@ -15,6 +15,7 @@ pub mod api;
 pub mod data;
 pub mod errors;
 pub mod middleware;
+pub mod simulator;
 pub mod tokens;
 pub mod types;
 

@@ -6,7 +6,12 @@ use axum::{
 };
 use std::sync::Arc;
 
-use crate::{errors::ResponseError, tokens, types, TeslaResponse};
+use crate::{
+    errors::ResponseError,
+    tokens,
+    types::{self, VehicleData},
+    TeslaResponse,
+};
 
 /// Get a list of vehicles associated with the authenticated account.
 ///
@@ -18,7 +23,7 @@ use crate::{errors::ResponseError, tokens, types, TeslaResponse};
 pub async fn vehicles_handler(
     State(vehicles): State<Arc<Vec<types::Vehicle>>>,
     Extension(config): Extension<Arc<tokens::AccessClaims>>,
-) -> Result<Json<TeslaResponse<Vec<types::Vehicle>>>, ResponseError> {
+) -> Result<Json<TeslaResponse<Vec<types::VehicleData>>>, ResponseError> {
     if !config
         .scopes
         .contains(&tokens::ScopeEnum::VehicleDeviceData)
@@ -26,7 +31,7 @@ pub async fn vehicles_handler(
         return Err(ResponseError::MissingScopes);
     }
 
-    let vehicles = (*vehicles).clone();
+    let vehicles: Vec<VehicleData> = vehicles.iter().map(|v| v.data.clone()).collect();
     Ok(Json(TeslaResponse::success(vehicles)))
 }
 
@@ -41,7 +46,7 @@ pub async fn vehicle_handler(
     State(vehicles): State<Arc<Vec<types::Vehicle>>>,
     Extension(config): Extension<Arc<tokens::AccessClaims>>,
     Path(id): Path<u64>,
-) -> Result<Json<TeslaResponse<types::Vehicle>>, ResponseError> {
+) -> Result<Json<TeslaResponse<types::VehicleData>>, ResponseError> {
     if !config
         .scopes
         .contains(&tokens::ScopeEnum::VehicleDeviceData)
@@ -51,8 +56,9 @@ pub async fn vehicle_handler(
 
     let vehicle = vehicles
         .iter()
-        .find(|v| v.id == id)
+        .find(|v| v.data.id == id)
         .ok_or(ResponseError::NotFound)?
+        .data
         .clone();
 
     Ok(Json(TeslaResponse::success(vehicle)))

@@ -32,7 +32,7 @@ enum TeslaOutMessage {
     DataSubscribeOauth {
         token: String,
         value: String,
-        tag: String,
+        tag: u64,
     },
 }
 
@@ -43,7 +43,7 @@ enum TeslaInMessage {
     ControlHello { connection_timeout: u64 },
 
     #[serde(rename = "data:update")]
-    DataUpdate { tag: String, value: String },
+    DataUpdate { tag: u64, value: String },
 
     #[serde(rename = "data:error")]
     DataError {
@@ -67,7 +67,7 @@ async fn test_streaming() {
     let msg = TeslaOutMessage::DataSubscribeOauth {
         token: token.access_token,
         value: "speed,odometer,soc,elevation,est_heading,est_lat,est_lng,power,shift_state,range,est_range,heading".to_string(),
-        tag: 123_456_000.to_string(),
+        tag: 123_456_000,
     };
     let msg = serde_json::to_string(&msg).unwrap();
     socket.send(Message::Text(msg)).await.unwrap();
