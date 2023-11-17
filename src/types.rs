@@ -6,6 +6,8 @@ use serde::Serialize;
 
 use crate::simulator;
 
+type Timestamp = i64;
+
 /// A vehicle
 pub struct Vehicle {
     /// The vehicle data
@@ -46,6 +48,7 @@ impl std::fmt::Debug for Vehicle {
 pub struct VehicleDefinition {
     /// Vehicle ID for owner-api endpoint.
     pub id: u64,
+
     /// Vehicle ID for streaming or Auto park API.
     pub vehicle_id: u64,
 
@@ -86,16 +89,49 @@ pub struct VehicleDefinition {
     pub backseat_token_updated_at: Option<String>,
 }
 
+/// Enum representing a vehicle's shift state.
+#[derive(Debug, Clone, Copy, Serialize)]
+pub enum ShiftState {
+    /// FIXME
+    Toyota,
+
+    /// FIXME
+    Bankrupt,
+
+    /// FIXME
+    Tesla,
+
+    /// FIXME
+    New,
+
+    /// FIXME
+    Old,
+}
+
+impl ToString for ShiftState {
+    fn to_string(&self) -> String {
+        match self {
+            Self::Toyota => "P",
+            Self::Bankrupt => "R",
+            Self::Tesla => "D",
+            Self::New => "N",
+            Self::Old => "1",
+        }
+        .to_string()
+    }
+}
+
+#[derive(Debug, Clone)]
 /// Struct representing streaming data from a vehicle.
 pub struct StreamingData {
     /// Unix timestamp in milliseconds.
-    pub time: u64,
+    pub time: Timestamp,
 
     /// Speed in km per hour.
-    pub speed: u32,
+    pub speed: Option<u32>,
 
     /// Odometer reading in km.
-    pub odometer: u64,
+    pub odometer: f64,
 
     /// State of charge as a percentage.
     pub soc: u8,
@@ -107,16 +143,16 @@ pub struct StreamingData {
     pub est_heading: u16,
 
     /// Estimated latitude in decimal degrees.
-    pub est_lat: f32,
+    pub est_lat: f64,
 
     /// Estimated longitude in decimal degrees.
-    pub est_lng: f32,
+    pub est_lng: f64,
 
     /// Power usage in watts.
-    pub power: String,
+    pub power: Option<i32>,
 
     /// Shift state of the vehicle.
-    pub shift_state: String,
+    pub shift_state: Option<ShiftState>,
 
     /// Estimated range in km.
     pub range: u32,
@@ -145,7 +181,7 @@ pub struct VehicleData {
     pub calendar_enabled: bool,
     pub api_version: i64,
     pub backseat_token: Option<String>,
-    pub backseat_token_updated_at: Option<u64>,
+    pub backseat_token_updated_at: Option<Timestamp>,
     pub charge_state: ChargeState,
     pub climate_state: ClimateState,
     pub drive_state: DriveState,
@@ -172,10 +208,10 @@ pub struct ChargeState {
     pub charge_current_request_max: i64,
     pub charge_enable_request: bool,
     pub charge_energy_added: f64,
-    pub charge_limit_soc: i64,
-    pub charge_limit_soc_max: i64,
-    pub charge_limit_soc_min: i64,
-    pub charge_limit_soc_std: i64,
+    pub charge_limit_soc: u8,
+    pub charge_limit_soc_max: u8,
+    pub charge_limit_soc_min: u8,
+    pub charge_limit_soc_std: u8,
     pub charge_miles_added_ideal: i64,
     pub charge_miles_added_rated: i64,
     pub charge_port_cold_weather_mode: bool,
@@ -196,7 +232,7 @@ pub struct ChargeState {
     pub fast_charger_type: String,
     pub ideal_battery_range: f64,
     pub managed_charging_active: bool,
-    pub managed_charging_start_time: Option<u64>,
+    pub managed_charging_start_time: Option<Timestamp>,
     pub managed_charging_user_canceled: bool,
     pub max_range_charge_counter: i64,
     pub minutes_to_full_charge: i64,
@@ -208,11 +244,11 @@ pub struct ChargeState {
     pub preconditioning_times: String,
     pub scheduled_charging_mode: String,
     pub scheduled_charging_pending: bool,
-    pub scheduled_charging_start_time: Option<u64>,
-    pub scheduled_departure_time: u64,
+    pub scheduled_charging_start_time: Option<Timestamp>,
+    pub scheduled_departure_time: Timestamp,
     pub scheduled_departure_time_minutes: i64,
     pub supercharger_session_trip_planner: bool,
-    pub time_to_full_charge: i64,
+    pub time_to_full_charge: Option<u32>,
     pub timestamp: i64,
     pub trip_charging: bool,
     pub usable_battery_level: i64,
@@ -265,23 +301,23 @@ pub struct ClimateState {
 }
 
 #[allow(missing_docs)]
-#[derive(Default, Debug, Clone, PartialEq, Serialize)]
+#[derive(Default, Debug, Clone, Serialize)]
 pub struct DriveState {
     pub active_route_latitude: f64,
     pub active_route_longitude: f64,
     pub active_route_traffic_minutes_delay: i64,
     pub gps_as_of: i64,
-    pub heading: i64,
+    pub heading: u16,
     pub latitude: f64,
     pub longitude: f64,
     pub native_latitude: f64,
     pub native_location_supported: i64,
     pub native_longitude: f64,
     pub native_type: String,
-    pub power: i64,
-    pub shift_state: Option<String>,
+    pub power: Option<i32>,
+    pub shift_state: Option<ShiftState>,
     pub speed: Option<u32>,
-    pub timestamp: u64,
+    pub timestamp: Timestamp,
 }
 
 #[allow(missing_docs)]

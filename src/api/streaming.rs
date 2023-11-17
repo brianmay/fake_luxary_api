@@ -72,15 +72,21 @@ fn serialize_fields(fields: &[Fields], data: &StreamingData) -> String {
     result.push(data.time.to_string());
     for field in fields {
         match field {
-            Fields::Speed => result.push(data.speed.to_string()),
+            Fields::Speed => {
+                result.push(data.speed.map(|x| u32::to_string(&x)).unwrap_or_default());
+            }
             Fields::Odometer => result.push(data.odometer.to_string()),
             Fields::Soc => result.push(data.soc.to_string()),
             Fields::Elevation => result.push(data.elevation.to_string()),
             Fields::EstHeading => result.push(data.est_heading.to_string()),
             Fields::EstLat => result.push(data.est_lat.to_string()),
             Fields::EstLng => result.push(data.est_lng.to_string()),
-            Fields::Power => result.push(data.power.to_string()),
-            Fields::ShiftState => result.push(data.shift_state.to_string()),
+            Fields::Power => {
+                result.push(data.power.map(|x| i32::to_string(&x)).unwrap_or_default());
+            }
+            Fields::ShiftState => {
+                result.push(data.shift_state.map(|x| x.to_string()).unwrap_or_default());
+            }
             Fields::Range => result.push(data.range.to_string()),
             Fields::EstRange => result.push(data.est_range.to_string()),
             Fields::Heading => result.push(data.heading.to_string()),

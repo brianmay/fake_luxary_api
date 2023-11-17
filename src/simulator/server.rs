@@ -2,22 +2,26 @@
 
 use std::sync::Arc;
 
+use chrono::{DateTime, Utc};
 use tokio::{
     select,
     sync::{broadcast, mpsc},
+    time::sleep_until,
 };
 use tracing::debug;
 
 use crate::types::{
     ChargeState, ClimateState, DriveState, GranularAccess, GuiSettings, MediaInfo, MediaState,
-    SoftwareUpdate, SpeedLimitMode, StreamingData, VehicleConfig, VehicleData, VehicleDefinition,
-    VehicleState,
+    ShiftState, SoftwareUpdate, SpeedLimitMode, StreamingData, VehicleConfig, VehicleData,
+    VehicleDefinition, VehicleState,
 };
 
 use super::{Command, CommandSender, StreamReceiver};
 
 #[allow(clippy::too_many_lines)]
-fn get_vehicle_data() -> VehicleData {
+fn get_vehicle_data(data: &StreamingData, now: DateTime<Utc>) -> VehicleData {
+    let timestamp = now.timestamp();
+
     VehicleData {
         id: 100_021,
         user_id: 800_001,
@@ -48,7 +52,7 @@ fn get_vehicle_data() -> VehicleData {
             charge_current_request_max: 48,
             charge_enable_request: true,
             charge_energy_added: 48.45,
-            charge_limit_soc: 90,
+            charge_limit_soc: data.soc,
             charge_limit_soc_max: 100,
             charge_limit_soc_min: 50,
             charge_limit_soc_std: 90,
@@ -88,8 +92,8 @@ fn get_vehicle_data() -> VehicleData {
             scheduled_departure_time: 1_634_914_800,
             scheduled_departure_time_minutes: 480,
             supercharger_session_trip_planner: false,
-            time_to_full_charge: 0,
-            timestamp: 1_692_141_038_420,
+            time_to_full_charge: None,
+            timestamp,
             trip_charging: false,
             usable_battery_level: 42,
             user_charge_enable_request: None,
@@ -132,7 +136,7 @@ fn get_vehicle_data() -> VehicleData {
             steering_wheel_heat_level: 0,
             steering_wheel_heater: false,
             supports_fan_only_cabin_overheat_protection: true,
-            timestamp: 1_692_141_038_419,
+            timestamp,
             wiper_blade_heater: false,
         },
         drive_state: DriveState {
@@ -140,17 +144,17 @@ fn get_vehicle_data() -> VehicleData {
             active_route_longitude: -122.419_541_8,
             active_route_traffic_minutes_delay: 0,
             gps_as_of: 1_692_137_422,
-            heading: 289,
-            latitude: 37.776_549_4,
-            longitude: -122.419_541_8,
-            native_latitude: 37.776_549_4,
+            heading: data.est_heading,
+            latitude: data.est_lat,
+            longitude: data.est_lng,
+            native_latitude: data.est_lat,
             native_location_supported: 1,
-            native_longitude: -122.419_541_8,
+            native_longitude: data.est_lng,
             native_type: "wgs".to_string(),
-            power: 1,
-            shift_state: None,
-            speed: None,
-            timestamp: 1_692_141_038_420,
+            power: data.power,
+            shift_state: data.shift_state,
+            speed: data.speed,
+            timestamp,
         },
         gui_settings: GuiSettings {
             gui_24_hour_time: false,
@@ -160,7 +164,7 @@ fn get_vehicle_data() -> VehicleData {
             gui_temperature_units: "F".to_string(),
             gui_tirepressure_units: "Psi".to_string(),
             show_range_units: false,
-            timestamp: 1_692_141_038_420,
+            timestamp,
         },
         vehicle_config: VehicleConfig {
             aux_park_lamps: "NaPremium".to_string(),
@@ -201,7 +205,7 @@ fn get_vehicle_data() -> VehicleData {
             sun_roof_installed: None,
             supports_qr_pairing: false,
             third_row_seats: "None".to_string(),
-            timestamp: 1_692_141_038_420,
+            timestamp,
             trim_badging: "74d".to_string(),
             use_range_badging: true,
             utc_offset: -25200,
@@ -247,7 +251,7 @@ fn get_vehicle_data() -> VehicleData {
                 remote_control_enabled: true,
             },
             notifications_supported: true,
-            odometer: 15_720.074_889,
+            odometer: data.odometer,
             parsed_calendar_supported: true,
             pf: 0,
             pr: 0,
@@ -278,7 +282,7 @@ fn get_vehicle_data() -> VehicleData {
                 pin_code_set: false,
             },
             summon_standby_mode_enabled: false,
-            timestamp: 1_692_141_038_419,
+            timestamp,
             tpms_hard_warning_fl: false,
             tpms_hard_warning_fr: false,
             tpms_hard_warning_rl: false,
@@ -316,36 +320,40 @@ pub fn start(_vehicle: VehicleDefinition) -> (CommandSender, StreamReceiver) {
 
     let s_tx_clone = s_tx.clone();
     tokio::spawn(async move {
+        // Simulated real time values.
+        let data = StreamingData {
+            time: 0,
+            speed: None,
+            odometer: 0.0,
+            soc: 0,
+            elevation: 0,
+            est_heading: 0,
+            est_lat: 0.0,
+            est_lng: 0.0,
+            power: Some(100),
+            shift_state: Some(ShiftState::Tesla),
+            range: 0,
+            est_range: 0,
+            heading: 0,
+        };
+
+        let mut next_instant = tokio::time::Instant::now() + std::time::Duration::from_secs(1);
         loop {
             select! {
-                () = tokio::time::sleep(std::time::Duration::from_secs(1)) => {
-                    let data = StreamingData {
-                        time: 0,
-                        speed: 0,
-                        odometer: 0,
-                        soc: 0,
-                        elevation: 0,
-                        est_heading: 0,
-                        est_lat: 0.0,
-                        est_lng: 0.0,
-                        power: "penguin".to_string(),
-                        shift_state: "P".to_string(),
-                        range: 0,
-                        est_range: 0,
-                        heading: 0,
-                    };
-
+                () = sleep_until(next_instant) => {
                     // It is not an error if we are sending and nobody is listening.
-                    _ = s_tx_clone.send(Arc::new(data));
+                    _ = s_tx_clone.send(Arc::new(data.clone()));
+                    next_instant = tokio::time::Instant::now() + std::time::Duration::from_secs(1);
                 }
                 cmd = c_rx.recv() => {
+                    let now = Utc::now();
                     match cmd {
                         Some(Command::WakeUp(tx)) => {
                             let rc = Ok(());
                             let _ = tx.send(rc);
                         }
                         Some(Command::GetVehicleData(tx)) => {
-                            let data = get_vehicle_data();
+                            let data = get_vehicle_data(&data, now);
                             let _ = tx.send(data);
                         }
                         None => {
