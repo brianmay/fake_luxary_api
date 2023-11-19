@@ -70,7 +70,7 @@ pub async fn vehicle_handler(
 ///
 /// Returns a 403 Forbidden if the token does not have the required scopes.
 #[allow(clippy::unused_async)]
-pub async fn get_vehicle_data_handler(
+pub async fn vehicle_data_handler(
     State(vehicles): State<Arc<Vec<types::Vehicle>>>,
     Extension(config): Extension<Arc<tokens::AccessClaims>>,
     Path(id): Path<u64>,
