@@ -1,6 +1,20 @@
-use fake_luxury_api::tokens;
+//! Test infrastructure
+#![allow(clippy::unwrap_used)]
+
 use std::collections::HashSet;
 
+use fla_server::tokens;
+
+/// Get a token for all scopes
+///
+/// # Returns
+///
+/// A token with all scopes
+///
+/// # Panics
+///
+/// Panics if the token cannot be generated
+#[must_use]
 #[allow(dead_code)]
 pub fn get_token_for_all_scopes() -> tokens::Token {
     // This config must match the server.
@@ -24,5 +38,6 @@ pub fn get_token_for_all_scopes() -> tokens::Token {
     tokens::Token::new(&config, &scopes).unwrap()
 }
 
+/// The URL of the server
 #[allow(dead_code)]
 pub const URL: &str = "http://localhost:4080/";

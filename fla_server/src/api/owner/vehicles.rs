@@ -4,85 +4,14 @@ use axum::{
     extract::{Path, Query, State},
     Extension, Json,
 };
-use serde::Serialize;
 use std::{collections::HashSet, str::FromStr, sync::Arc};
 use tap::Pipe;
 use tracing::error;
 
-use crate::{
-    errors::ResponseError,
-    tokens,
-    types::{
-        self, ChargeState, ClimateState, DriveState, GranularAccess, GuiSettings, Timestamp,
-        VehicleConfig, VehicleDefinition, VehicleState,
-    },
-    TeslaResponse,
+use crate::{errors::ResponseError, tokens, types::Vehicle, TeslaResponse};
+use fla_common::types::{
+    self, DriveState, VehicleDataEndpoint, VehicleDataQuery, VehicleDataResponse, VehicleDefinition,
 };
-
-#[derive(Eq, PartialEq, Hash)]
-enum Endpoint {
-    ChargeState,
-    ClimateState,
-    ClosuresState,
-    DriveState,
-    GuiSettings,
-    LocationData,
-    VehicleConfig,
-    VehicleState,
-    VehicleDataCombo,
-}
-
-impl FromStr for Endpoint {
-    type Err = String;
-
-    fn from_str(s: &str) -> Result<Self, Self::Err> {
-        match s {
-            "charge_state" => Ok(Self::ChargeState),
-            "climate_state" => Ok(Self::ClimateState),
-            "closures_state" => Ok(Self::ClosuresState),
-            "drive_state" => Ok(Self::DriveState),
-            "gui_settings" => Ok(Self::GuiSettings),
-            "location_data" => Ok(Self::LocationData),
-            "vehicle_config" => Ok(Self::VehicleConfig),
-            "vehicle_state" => Ok(Self::VehicleState),
-            "vehicle_data_combo" => Ok(Self::VehicleDataCombo),
-            _ => Err(format!("Invalid endpoint: {s}")),
-        }
-    }
-}
-
-#[allow(missing_docs)]
-#[derive(Default, Debug, Clone, Serialize)]
-pub struct VehicleDataResponse {
-    pub id: i64,
-    pub user_id: i64,
-    pub vehicle_id: i64,
-    pub vin: String,
-    pub color: Option<String>,
-    pub access_type: String,
-    pub granular_access: GranularAccess,
-    pub tokens: Vec<String>,
-    pub state: Option<String>,
-    pub in_service: bool,
-    pub id_s: String,
-    pub calendar_enabled: bool,
-    pub api_version: i64,
-    pub backseat_token: Option<String>,
-    pub backseat_token_updated_at: Option<Timestamp>,
-    pub charge_state: Option<ChargeState>,
-    pub climate_state: Option<ClimateState>,
-    pub drive_state: Option<DriveState>,
-    pub gui_settings: Option<GuiSettings>,
-    pub vehicle_config: Option<VehicleConfig>,
-    pub vehicle_state: Option<VehicleState>,
-}
-
-/// Query parameters for vehicle data
-#[derive(serde::Deserialize, Debug)]
-pub struct VehicleDataQuery {
-    /// List of endpoints to retrieve
-    endpoints: Option<String>,
-}
 
 /// Get a list of vehicles associated with the authenticated account.
 ///
@@ -92,7 +21,7 @@ pub struct VehicleDataQuery {
 #[allow(clippy::module_name_repetitions)]
 #[allow(clippy::unused_async)]
 pub async fn vehicles_handler(
-    State(vehicles): State<Arc<Vec<types::Vehicle>>>,
+    State(vehicles): State<Arc<Vec<Vehicle>>>,
     Extension(config): Extension<Arc<tokens::AccessClaims>>,
 ) -> Result<Json<TeslaResponse<Vec<types::VehicleDefinition>>>, ResponseError> {
     if !config
@@ -114,7 +43,7 @@ pub async fn vehicles_handler(
 #[allow(clippy::module_name_repetitions)]
 #[allow(clippy::unused_async)]
 pub async fn vehicle_handler(
-    State(vehicles): State<Arc<Vec<types::Vehicle>>>,
+    State(vehicles): State<Arc<Vec<Vehicle>>>,
     Extension(config): Extension<Arc<tokens::AccessClaims>>,
     Path(id): Path<u64>,
 ) -> Result<Json<TeslaResponse<types::VehicleDefinition>>, ResponseError> {
@@ -142,7 +71,7 @@ pub async fn vehicle_handler(
 /// Returns a 403 Forbidden if the token does not have the required scopes.
 #[allow(clippy::unused_async)]
 pub async fn vehicle_data_handler(
-    State(vehicles): State<Arc<Vec<types::Vehicle>>>,
+    State(vehicles): State<Arc<Vec<Vehicle>>>,
     Extension(config): Extension<Arc<tokens::AccessClaims>>,
     Path(id): Path<u64>,
     query: Query<VehicleDataQuery>,
@@ -166,7 +95,7 @@ pub async fn vehicle_data_handler(
         .as_ref()
         .map(|e| {
             e.split(',')
-                .map(Endpoint::from_str)
+                .map(VehicleDataEndpoint::from_str)
                 .collect::<Result<HashSet<_>, _>>()
                 .map_err(|err| {
                     error!("xxxx not valid: {err:?}");
@@ -180,15 +109,15 @@ pub async fn vehicle_data_handler(
     let charge_state = data
         .charge_state
         .pipe(Some)
-        .filter(|_| endpoints.contains(&Endpoint::ChargeState));
+        .filter(|_| endpoints.contains(&VehicleDataEndpoint::ChargeState));
 
     let climate_state = data
         .climate_state
         .pipe(Some)
-        .filter(|_| endpoints.contains(&Endpoint::ClimateState));
+        .filter(|_| endpoints.contains(&VehicleDataEndpoint::ClimateState));
 
-    let drive_state = if endpoints.contains(&Endpoint::DriveState) {
-        let location = endpoints.contains(&Endpoint::LocationData);
+    let drive_state = if endpoints.contains(&VehicleDataEndpoint::DriveState) {
+        let location = endpoints.contains(&VehicleDataEndpoint::LocationData);
 
         DriveState {
             heading: data.drive_state.heading.filter(|_| location),
@@ -204,17 +133,17 @@ pub async fn vehicle_data_handler(
     let gui_settings = data
         .gui_settings
         .pipe(Some)
-        .filter(|_| endpoints.contains(&Endpoint::GuiSettings));
+        .filter(|_| endpoints.contains(&VehicleDataEndpoint::GuiSettings));
 
     let vehicle_config = data
         .vehicle_config
         .pipe(Some)
-        .filter(|_| endpoints.contains(&Endpoint::VehicleConfig));
+        .filter(|_| endpoints.contains(&VehicleDataEndpoint::VehicleConfig));
 
     let vehicle_state = data
         .vehicle_state
         .pipe(Some)
-        .filter(|_| endpoints.contains(&Endpoint::VehicleState));
+        .filter(|_| endpoints.contains(&VehicleDataEndpoint::VehicleState));
 
     let response = VehicleDataResponse {
         id: data.id,

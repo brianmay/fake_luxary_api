@@ -1,10 +1,4 @@
-//! Tesla API client library
-
-#![warn(missing_docs)]
-#![deny(clippy::pedantic)]
-#![deny(clippy::nursery)]
-#![deny(clippy::unwrap_used)]
-#![deny(clippy::expect_used)]
+//! Fake Luxury API library
 
 use std::{collections::HashMap, sync::Arc};
 

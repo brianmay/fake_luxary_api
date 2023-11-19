@@ -1,19 +1,14 @@
 //! The main HTTP server
-#![warn(missing_docs)]
-#![deny(clippy::pedantic)]
-#![deny(clippy::nursery)]
-#![deny(clippy::unwrap_used)]
-#![deny(clippy::expect_used)]
 
 use axum::Router;
-use fake_luxury_api::{
-    api::{auth, owner, streaming},
-    data, tokens,
-};
 use std::sync::Arc;
 use tower_http::trace::TraceLayer;
 
-use fake_luxury_api::Config;
+use fla_server::Config;
+use fla_server::{
+    api::{auth, owner, streaming},
+    data, tokens,
+};
 
 #[tokio::main]
 async fn main() {

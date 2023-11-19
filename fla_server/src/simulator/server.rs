@@ -3,6 +3,10 @@
 use std::sync::Arc;
 
 use chrono::{DateTime, Utc};
+use fla_common::types::{
+    ChargeState, ClimateState, DriveState, GranularAccess, GuiSettings, MediaInfo, MediaState,
+    ShiftState, SoftwareUpdate, SpeedLimitMode, VehicleConfig, VehicleDefinition, VehicleState,
+};
 use tokio::{
     select,
     sync::{broadcast, mpsc},
@@ -10,11 +14,7 @@ use tokio::{
 };
 use tracing::debug;
 
-use crate::types::{
-    ChargeState, ClimateState, DriveState, GranularAccess, GuiSettings, MediaInfo, MediaState,
-    ShiftState, SoftwareUpdate, SpeedLimitMode, StreamingData, VehicleConfig, VehicleData,
-    VehicleDefinition, VehicleState,
-};
+use crate::types::{StreamingData, VehicleData};
 
 use super::{Command, CommandSender, StreamReceiver};
 

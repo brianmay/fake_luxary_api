@@ -1,3 +1,7 @@
+#![allow(clippy::unwrap_used)]
+#![allow(clippy::expect_used)]
+
+use fla_test::get_token_for_all_scopes;
 use futures_util::{SinkExt, StreamExt};
 use http::StatusCode;
 use serde::{Deserialize, Serialize};
@@ -10,8 +14,6 @@ use tokio_tungstenite::{
 };
 
 use url::Url;
-
-mod common;
 
 #[derive(Deserialize, Serialize, Debug)]
 enum ErrorType {
@@ -55,7 +57,7 @@ enum TeslaInMessage {
 
 #[tokio::test]
 async fn test_streaming() {
-    let token = common::get_token_for_all_scopes();
+    let token = get_token_for_all_scopes();
 
     let url = "ws://localhost:4080/streaming/";
 
@@ -81,25 +83,25 @@ async fn test_streaming() {
                     TeslaInMessage::ControlHello {
                         connection_timeout: _,
                     } => {
-                        println!("Received: {:?}", msg);
+                        println!("Received: {msg:?}");
                     }
                     TeslaInMessage::DataUpdate { tag, value } => {
-                        println!("Received: {} {}", tag, value);
+                        println!("Received: {tag} {value}");
                     }
                     TeslaInMessage::DataError {
                         tag,
                         error_type,
                         value,
                     } => {
-                        println!("Received: {} {:?} {}", tag, error_type, value);
+                        println!("Received: {tag} {error_type:?} {value}");
                     }
                 }
             }
             Ok(msg) => {
-                println!("Received: {:?}", msg);
+                println!("Received: {msg:?}");
             }
             Err(e) => {
-                println!("Error: {:?}", e);
+                println!("Error: {e:?}");
             }
         }
 

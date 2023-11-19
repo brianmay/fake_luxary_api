@@ -1,6 +1,6 @@
 use std::collections::HashSet;
 
-use fake_luxury_api::tokens;
+use fla_server::tokens;
 
 fn main() {
     // This config must match the server.

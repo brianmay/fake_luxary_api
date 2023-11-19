@@ -1,9 +1,10 @@
+#![allow(clippy::unwrap_used)]
+
+use fla_test::{get_token_for_all_scopes, URL};
 use reqwest::Client;
 use restest::assert_body_matches;
 use serde::Deserialize;
 use serde_json::Value;
-
-mod common;
 
 #[allow(dead_code)]
 #[derive(Debug, Deserialize)]
@@ -48,9 +49,9 @@ struct VehicleDataResponse {
 
 #[tokio::test]
 async fn test_vehicles() {
-    let token = common::get_token_for_all_scopes();
+    let token = get_token_for_all_scopes();
 
-    let url = format!("{}api/1/vehicles", common::URL);
+    let url = format!("{URL}api/1/vehicles");
     let vehicles = Client::new()
         .get(url)
         .header("Content-Type", "application/json")
@@ -107,10 +108,10 @@ async fn test_vehicles() {
 
 #[tokio::test]
 async fn test_vehicle_1() {
-    let token = common::get_token_for_all_scopes();
+    let token = get_token_for_all_scopes();
 
     // Test code that use `CONTEXT` for a specific route
-    let url = format!("{}api/1/vehicles/{}", common::URL, 123_456_789);
+    let url = format!("{URL}api/1/vehicles/{}", 123_456_789);
     let vehicle = Client::new()
         .get(url)
         .header("Content-Type", "application/json")
@@ -149,10 +150,10 @@ async fn test_vehicle_1() {
 
 #[tokio::test]
 async fn test_vehicle_2() {
-    let token = common::get_token_for_all_scopes();
+    let token = get_token_for_all_scopes();
 
     // Test code that use `CONTEXT` for a specific route
-    let url = format!("{}api/1/vehicles/{}", common::URL, 123_456_000);
+    let url = format!("{URL}api/1/vehicles/{}", 123_456_000);
     let vehicle = Client::new()
         .get(url)
         .header("Content-Type", "application/json")
@@ -191,10 +192,10 @@ async fn test_vehicle_2() {
 
 #[tokio::test]
 async fn test_wakeup() {
-    let token = common::get_token_for_all_scopes();
+    let token = get_token_for_all_scopes();
 
     // Test code that use `CONTEXT` for a specific route
-    let url = format!("{}api/1/vehicles/{}/wake_up", common::URL, 123_456_000);
+    let url = format!("{URL}api/1/vehicles/{}/wake_up", 123_456_000);
     let vehicle = Client::new()
         .post(url)
         .header("Content-Type", "application/json")
@@ -233,13 +234,13 @@ async fn test_wakeup() {
 
 #[tokio::test]
 async fn test_vehicle_data() {
-    let token = common::get_token_for_all_scopes();
+    let token = get_token_for_all_scopes();
 
     let endpoints = "charge_state,climate_state,closures_state,drive_state,gui_settings,location_data,vehicle_config,vehicle_state,vehicle_data_combo";
     let query = [("endpoints", endpoints)];
 
     // Test code that use `CONTEXT` for a specific route
-    let url = format!("{}api/1/vehicles/{}/vehicle_data", common::URL, 123_456_000);
+    let url = format!("{URL}api/1/vehicles/{}/vehicle_data", 123_456_000);
     let vehicle = Client::new()
         .get(url)
         .query(&query)

@@ -6,7 +6,7 @@ use tokio::sync::{broadcast, mpsc, oneshot};
 
 use crate::{
     errors,
-    types::{self, VehicleData},
+    types::{StreamingData, VehicleData},
 };
 pub mod server;
 
@@ -15,7 +15,7 @@ type VehicleDataResponse = Result<VehicleData, errors::ResponseError>;
 
 enum Command {
     WakeUp(oneshot::Sender<WakeUpResponse>),
-    GetVehicleData(oneshot::Sender<types::VehicleData>),
+    GetVehicleData(oneshot::Sender<VehicleData>),
 }
 
 /// A handle to the simulator
@@ -64,12 +64,12 @@ impl CommandSender {
 }
 
 /// A handle to the simulator streaming data
-pub struct StreamReceiver(broadcast::Sender<Arc<types::StreamingData>>);
+pub struct StreamReceiver(broadcast::Sender<Arc<StreamingData>>);
 
 impl StreamReceiver {
     /// Subscribe to streaming data
     #[must_use]
-    pub fn subscribe(&self) -> broadcast::Receiver<Arc<types::StreamingData>> {
+    pub fn subscribe(&self) -> broadcast::Receiver<Arc<StreamingData>> {
         self.0.subscribe()
     }
 }

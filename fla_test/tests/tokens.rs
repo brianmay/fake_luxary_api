@@ -1,9 +1,10 @@
-use fake_luxury_api::tokens::{self, validate_access_token, validate_refresh_token};
+#![allow(clippy::unwrap_used)]
+
+use fla_server::tokens::{self, validate_access_token, validate_refresh_token, Token};
+use fla_test::URL;
 use reqwest::Client;
 use serde::{Deserialize, Serialize};
 use std::collections::HashSet;
-
-mod common;
 
 #[derive(Serialize)]
 struct RefreshTokenRequest {
@@ -44,7 +45,7 @@ async fn test_renew_token() {
     .into_iter()
     .collect::<HashSet<tokens::ScopeEnum>>();
 
-    let token = tokens::Token::new(&config, &scopes).unwrap();
+    let token = Token::new(&config, &scopes).unwrap();
 
     let body = RefreshTokenRequest {
         grant_type: "refresh_token".into(),
@@ -54,7 +55,7 @@ async fn test_renew_token() {
         scope: "openid offline_access vehicle_device_data vehicle_cmds vehicle_charging_cmds energy_device_data energy_cmds".into(),
     };
 
-    let url = format!("{}oauth2/v3/token", common::URL);
+    let url = format!("{URL}oauth2/v3/token");
     let new_token = Client::new()
         .post(url)
         .json(&body)

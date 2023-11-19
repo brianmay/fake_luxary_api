@@ -308,34 +308,59 @@ dependencies = [
 ]
 
 [[package]]
-name = "fake_luxury_api"
+name = "fastrand"
+version = "2.0.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "25cbce373ec4653f1a01a31e8a5e5ec0c622dc27ff9c4e6606eefef5cbbed4a5"
+
+[[package]]
+name = "fla_client"
+version = "0.1.0"
+
+[[package]]
+name = "fla_common"
+version = "0.1.0"
+dependencies = [
+ "serde",
+]
+
+[[package]]
+name = "fla_server"
 version = "0.1.0"
 dependencies = [
  "axum",
  "axum-auth",
  "chrono",
- "futures-util",
+ "fla_common",
  "http",
  "jsonwebtoken",
  "reqwest",
- "restest",
  "serde",
  "serde_json",
  "tap",
  "thiserror",
  "tokio",
- "tokio-tungstenite",
  "tower-http",
  "tracing",
  "tracing-subscriber",
- "url",
 ]
 
 [[package]]
-name = "fastrand"
-version = "2.0.1"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "25cbce373ec4653f1a01a31e8a5e5ec0c622dc27ff9c4e6606eefef5cbbed4a5"
+name = "fla_test"
+version = "0.1.0"
+dependencies = [
+ "fla_common",
+ "fla_server",
+ "futures-util",
+ "http",
+ "reqwest",
+ "restest",
+ "serde",
+ "serde_json",
+ "tokio",
+ "tokio-tungstenite",
+ "url",
+]
 
 [[package]]
 name = "fnv"

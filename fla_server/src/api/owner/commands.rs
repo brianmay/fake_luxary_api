@@ -6,13 +6,9 @@ use axum::{
     extract::{Path, State},
     Extension, Json,
 };
+use fla_common::types::VehicleDefinition;
 
-use crate::{
-    errors::ResponseError,
-    tokens,
-    types::{self, VehicleDefinition},
-    TeslaResponse,
-};
+use crate::{errors::ResponseError, tokens, types::Vehicle, TeslaResponse};
 
 /// Wake up the vehicle
 ///
@@ -22,7 +18,7 @@ use crate::{
 /// Returns a 404 Not Found if the vehicle does not exist.
 #[allow(clippy::unused_async)]
 pub async fn wake_up_handler(
-    State(vehicles): State<Arc<Vec<types::Vehicle>>>,
+    State(vehicles): State<Arc<Vec<Vehicle>>>,
     Extension(config): Extension<Arc<tokens::AccessClaims>>,
     Path(id): Path<u64>,
 ) -> Result<Json<TeslaResponse<VehicleDefinition>>, ResponseError> {
