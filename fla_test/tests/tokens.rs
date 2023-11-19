@@ -1,8 +1,6 @@
 #![allow(clippy::unwrap_used)]
 
 use fla_server::tokens::{self, validate_access_token, validate_refresh_token, Token};
-use fla_test::URL;
-use reqwest::Client;
 use serde::{Deserialize, Serialize};
 use std::collections::HashSet;
 
@@ -46,28 +44,8 @@ async fn test_renew_token() {
     .collect::<HashSet<tokens::ScopeEnum>>();
 
     let token = Token::new(&config, &scopes).unwrap();
-
-    let body = RefreshTokenRequest {
-        grant_type: "refresh_token".into(),
-        refresh_token: token.refresh_token,
-        client_id: "ownerapi".into(),
-        // scope has user_data removed but vehicle_device_data added
-        scope: "openid offline_access vehicle_device_data vehicle_cmds vehicle_charging_cmds energy_device_data energy_cmds".into(),
-    };
-
-    let url = format!("{URL}oauth2/v3/token");
-    let new_token = Client::new()
-        .post(url)
-        .json(&body)
-        .header("Content-Type", "application/json")
-        .send()
-        .await
-        .unwrap()
-        .error_for_status()
-        .unwrap()
-        .json::<TokenResponse>()
-        .await
-        .unwrap();
+    let client = fla_test::get_client();
+    let new_token = client.refresh_token(token.refresh_token).await.unwrap();
 
     // assert!(new_token.access_token != token.access_token);
     // assert!(new_token.refresh_token != token.refresh_token);

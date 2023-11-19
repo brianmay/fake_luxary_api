@@ -9,6 +9,9 @@ use axum::routing::post;
 use axum::Json;
 use axum::Router;
 use chrono::Utc;
+use fla_common::auth::RefreshTokenRequest;
+use fla_common::auth::TokenRequest;
+use fla_common::auth::TokenResult;
 use tracing::error;
 
 use crate::errors;
@@ -22,64 +25,6 @@ pub fn router(config: &Config) -> Router {
     Router::new()
         .route("/oauth2/v3/token", post(token_handler))
         .with_state(config.clone())
-}
-
-/// A request to refresh an existing token using an authorization code
-#[allow(dead_code)]
-#[derive(serde::Deserialize)]
-pub struct AuthorizationCodeRequest {
-    client_id: String,
-    client_secret: String,
-    code: String,
-    redirect_uri: String,
-    scope: String,
-    audience: String,
-}
-
-/// A request to refresh an existing token
-#[allow(dead_code)]
-#[derive(serde::Deserialize)]
-pub struct RefreshTokenRequest {
-    refresh_token: String,
-    client_id: String,
-    scope: String,
-}
-
-/// A request to create a new token using client credentials
-#[allow(dead_code)]
-#[derive(serde::Deserialize)]
-pub struct ClientCredentialsRequest {
-    client_id: String,
-    client_secret: String,
-    scope: String,
-    audience: String,
-}
-
-/// The request for a new token
-#[derive(serde::Deserialize)]
-#[serde(tag = "grant_type")]
-pub enum TokenRequest {
-    /// A request to refresh an existing token using an authorization code
-    #[serde(rename = "authorization_code")]
-    AuthorizationCode(AuthorizationCodeRequest),
-
-    /// A request to refresh an existing token
-    #[serde(rename = "refresh_token")]
-    RefreshToken(RefreshTokenRequest),
-
-    /// A request to create a new token using client credentials
-    #[serde(rename = "client_credentials")]
-    ClientCredentials(ClientCredentialsRequest),
-}
-
-/// Raw Tesla token from API
-#[derive(serde::Serialize)]
-pub struct TokenResult {
-    access_token: String,
-    refresh_token: String,
-    id_token: String,
-    token_type: String,
-    expires_in: u64,
 }
 
 fn renew_token(

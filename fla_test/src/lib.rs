@@ -15,7 +15,7 @@ use fla_server::tokens;
 ///
 /// Panics if the token cannot be generated
 #[must_use]
-#[allow(dead_code)]
+// #[allow(dead_code)]
 pub fn get_token_for_all_scopes() -> tokens::Token {
     // This config must match the server.
     let config = tokens::Config {
@@ -41,3 +41,13 @@ pub fn get_token_for_all_scopes() -> tokens::Token {
 /// The URL of the server
 #[allow(dead_code)]
 pub const URL: &str = "http://localhost:4080/";
+
+/// Get a client for connecting to the server
+#[must_use]
+pub fn get_client() -> fla_client::Client {
+    fla_client::Config::new()
+        .auth_url("http://localhost:4080/")
+        .owner_url("http://localhost:4080/")
+        .streaming_url("ws://localhost:4080/")
+        .build()
+}
