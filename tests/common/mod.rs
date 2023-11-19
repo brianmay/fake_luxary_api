@@ -1,6 +1,7 @@
 use fake_luxury_api::tokens;
 use std::collections::HashSet;
 
+#[allow(dead_code)]
 pub fn get_token_for_all_scopes() -> tokens::Token {
     // This config must match the server.
     let config = tokens::Config {
@@ -22,3 +23,6 @@ pub fn get_token_for_all_scopes() -> tokens::Token {
 
     tokens::Token::new(&config, &scopes).unwrap()
 }
+
+#[allow(dead_code)]
+pub const URL: &str = "http://localhost:4080/";

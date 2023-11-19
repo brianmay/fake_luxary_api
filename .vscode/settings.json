@@ -25,6 +25,7 @@
         "ownerapi",
         "PBSB",
         "perc",
+        "reqwest",
         "restest",
         "STCP",
         "thiserror",

@@ -1,12 +1,11 @@
 //! Shared types for all API
 
+use crate::simulator;
+use serde::Serialize;
 use std::fmt::Formatter;
 
-use serde::Serialize;
-
-use crate::simulator;
-
-type Timestamp = i64;
+/// A timestamp
+pub type Timestamp = i64;
 
 /// A vehicle
 pub struct Vehicle {
@@ -307,9 +306,9 @@ pub struct DriveState {
     pub active_route_longitude: f64,
     pub active_route_traffic_minutes_delay: i64,
     pub gps_as_of: i64,
-    pub heading: u16,
-    pub latitude: f64,
-    pub longitude: f64,
+    pub heading: Option<u16>,
+    pub latitude: Option<f64>,
+    pub longitude: Option<f64>,
     pub native_latitude: f64,
     pub native_location_supported: i64,
     pub native_longitude: f64,

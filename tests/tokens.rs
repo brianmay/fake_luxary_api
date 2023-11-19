@@ -1,12 +1,9 @@
+use fake_luxury_api::tokens::{self, validate_access_token, validate_refresh_token};
+use reqwest::Client;
+use serde::{Deserialize, Serialize};
 use std::collections::HashSet;
 
-use fake_luxury_api::tokens::{self, validate_access_token, validate_refresh_token};
-use restest::{path, Context, Request};
-
-use http::StatusCode;
-use serde::{Deserialize, Serialize};
-
-const CONTEXT: Context = Context::new().with_port(4080);
+mod common;
 
 #[derive(Serialize)]
 struct RefreshTokenRequest {
@@ -57,17 +54,19 @@ async fn test_renew_token() {
         scope: "openid offline_access vehicle_device_data vehicle_cmds vehicle_charging_cmds energy_device_data energy_cmds".into(),
     };
 
-    // Test code that use `CONTEXT` for a specific route
-    let request = Request::post(path!["oauth2", "v3", "token"])
-        .with_header("Content-Type", "application/json")
-        // .with_header("Authorization", format!("Bearer {}", token.refresh_token))
-        .with_body(body);
-
-    let new_token: TokenResponse = CONTEXT
-        .run(request)
+    let url = format!("{}oauth2/v3/token", common::URL);
+    let new_token = Client::new()
+        .post(url)
+        .json(&body)
+        .header("Content-Type", "application/json")
+        .send()
         .await
-        .expect_status(StatusCode::OK)
-        .await;
+        .unwrap()
+        .error_for_status()
+        .unwrap()
+        .json::<TokenResponse>()
+        .await
+        .unwrap();
 
     // assert!(new_token.access_token != token.access_token);
     // assert!(new_token.refresh_token != token.refresh_token);

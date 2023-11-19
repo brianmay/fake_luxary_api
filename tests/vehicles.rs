@@ -1,11 +1,9 @@
-use http::StatusCode;
-use restest::{assert_body_matches, path, Context, Request};
+use reqwest::Client;
+use restest::assert_body_matches;
 use serde::Deserialize;
 use serde_json::Value;
 
 mod common;
-
-const CONTEXT: Context = Context::new().with_port(4080);
 
 #[allow(dead_code)]
 #[derive(Debug, Deserialize)]
@@ -52,17 +50,19 @@ struct VehicleDataResponse {
 async fn test_vehicles() {
     let token = common::get_token_for_all_scopes();
 
-    // Test code that use `CONTEXT` for a specific route
-    let request = Request::get(path!["api", 1, "vehicles"])
-        .with_header("Content-Type", "application/json")
-        .with_header("Authorization", format!("Bearer {}", token.access_token))
-        .with_body(());
-
-    let vehicles: VehiclesResponse = CONTEXT
-        .run(request)
+    let url = format!("{}api/1/vehicles", common::URL);
+    let vehicles = Client::new()
+        .get(url)
+        .header("Content-Type", "application/json")
+        .bearer_auth(token.access_token)
+        .send()
         .await
-        .expect_status(StatusCode::OK)
-        .await;
+        .unwrap()
+        .error_for_status()
+        .unwrap()
+        .json::<VehiclesResponse>()
+        .await
+        .unwrap();
 
     assert_body_matches!(
         vehicles,
@@ -110,16 +110,19 @@ async fn test_vehicle_1() {
     let token = common::get_token_for_all_scopes();
 
     // Test code that use `CONTEXT` for a specific route
-    let request = Request::get(path!["api", 1, "vehicles", 123_456_789])
-        .with_header("Content-Type", "application/json")
-        .with_header("Authorization", format!("Bearer {}", token.access_token))
-        .with_body(());
-
-    let vehicle: VehicleResponse = CONTEXT
-        .run(request)
+    let url = format!("{}api/1/vehicles/{}", common::URL, 123_456_789);
+    let vehicle = Client::new()
+        .get(url)
+        .header("Content-Type", "application/json")
+        .bearer_auth(token.access_token)
+        .send()
         .await
-        .expect_status(StatusCode::OK)
-        .await;
+        .unwrap()
+        .error_for_status()
+        .unwrap()
+        .json::<VehicleResponse>()
+        .await
+        .unwrap();
 
     assert_body_matches!(
         vehicle,
@@ -149,16 +152,19 @@ async fn test_vehicle_2() {
     let token = common::get_token_for_all_scopes();
 
     // Test code that use `CONTEXT` for a specific route
-    let request = Request::get(path!["api", 1, "vehicles", 123_456_000])
-        .with_header("Content-Type", "application/json")
-        .with_header("Authorization", format!("Bearer {}", token.access_token))
-        .with_body(());
-
-    let vehicle: VehicleResponse = CONTEXT
-        .run(request)
+    let url = format!("{}api/1/vehicles/{}", common::URL, 123_456_000);
+    let vehicle = Client::new()
+        .get(url)
+        .header("Content-Type", "application/json")
+        .bearer_auth(token.access_token)
+        .send()
         .await
-        .expect_status(StatusCode::OK)
-        .await;
+        .unwrap()
+        .error_for_status()
+        .unwrap()
+        .json::<VehicleResponse>()
+        .await
+        .unwrap();
 
     assert_body_matches!(
         vehicle,
@@ -188,16 +194,19 @@ async fn test_wakeup() {
     let token = common::get_token_for_all_scopes();
 
     // Test code that use `CONTEXT` for a specific route
-    let request = Request::post(path!["api", 1, "vehicles", 123_456_000, "wake_up"])
-        .with_header("Content-Type", "application/json")
-        .with_header("Authorization", format!("Bearer {}", token.access_token))
-        .with_body(());
-
-    let vehicle: VehicleResponse = CONTEXT
-        .run(request)
+    let url = format!("{}api/1/vehicles/{}/wake_up", common::URL, 123_456_000);
+    let vehicle = Client::new()
+        .post(url)
+        .header("Content-Type", "application/json")
+        .bearer_auth(token.access_token)
+        .send()
         .await
-        .expect_status(StatusCode::OK)
-        .await;
+        .unwrap()
+        .error_for_status()
+        .unwrap()
+        .json::<VehicleResponse>()
+        .await
+        .unwrap();
 
     assert_body_matches!(
         vehicle,
@@ -226,17 +235,77 @@ async fn test_wakeup() {
 async fn test_vehicle_data() {
     let token = common::get_token_for_all_scopes();
 
-    // Test code that use `CONTEXT` for a specific route
-    let request = Request::get(path!["api", 1, "vehicles", 123_456_000, "vehicle_data"])
-        .with_header("Content-Type", "application/json")
-        .with_header("Authorization", format!("Bearer {}", token.access_token))
-        .with_body(());
+    let endpoints = "charge_state,climate_state,closures_state,drive_state,gui_settings,location_data,vehicle_config,vehicle_state,vehicle_data_combo";
+    let query = [("endpoints", endpoints)];
 
-    let vehicle: VehicleDataResponse = CONTEXT
-        .run(request)
+    // Test code that use `CONTEXT` for a specific route
+    let url = format!("{}api/1/vehicles/{}/vehicle_data", common::URL, 123_456_000);
+    let vehicle = Client::new()
+        .get(url)
+        .query(&query)
+        .header("Content-Type", "application/json")
+        .bearer_auth(token.access_token)
+        .send()
         .await
-        .expect_status(StatusCode::OK)
-        .await;
+        .unwrap()
+        .error_for_status()
+        .unwrap()
+        .json::<VehicleDataResponse>()
+        .await
+        .unwrap();
 
     assert_body_matches!(vehicle, VehicleDataResponse { response: _ },);
+    vehicle
+        .response
+        .as_object()
+        .unwrap()
+        .get("charge_state")
+        .unwrap()
+        .as_object()
+        .unwrap();
+
+    vehicle
+        .response
+        .as_object()
+        .unwrap()
+        .get("climate_state")
+        .unwrap()
+        .as_object()
+        .unwrap();
+
+    vehicle
+        .response
+        .as_object()
+        .unwrap()
+        .get("drive_state")
+        .unwrap()
+        .as_object()
+        .unwrap();
+
+    vehicle
+        .response
+        .as_object()
+        .unwrap()
+        .get("gui_settings")
+        .unwrap()
+        .as_object()
+        .unwrap();
+
+    vehicle
+        .response
+        .as_object()
+        .unwrap()
+        .get("vehicle_config")
+        .unwrap()
+        .as_object()
+        .unwrap();
+
+    vehicle
+        .response
+        .as_object()
+        .unwrap()
+        .get("vehicle_state")
+        .unwrap()
+        .as_object()
+        .unwrap();
 }
