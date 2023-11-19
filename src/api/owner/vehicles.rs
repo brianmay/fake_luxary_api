@@ -173,7 +173,7 @@ pub async fn vehicle_data_handler(
                     err
                 })
         })
-        .map_or(Ok(None), |e| e.map(Some))
+        .transpose()
         .map_err(|_| ResponseError::InvalidCommand)?
         .unwrap_or_default();
 
