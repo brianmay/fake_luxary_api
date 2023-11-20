@@ -1,9 +1,12 @@
 use std::fmt::Formatter;
 
 use crate::simulator;
-use fla_common::types::{
-    ChargeState, ClimateState, DriveState, GranularAccess, GuiSettings, ShiftState, Timestamp,
-    VehicleConfig, VehicleDefinition, VehicleId, VehicleState,
+use fla_common::{
+    streaming::StreamingDataOptional,
+    types::{
+        ChargeState, ClimateState, DriveState, GranularAccess, GuiSettings, Timestamp,
+        VehicleConfig, VehicleDefinition, VehicleId, VehicleState,
+    },
 };
 use serde::Serialize;
 
@@ -68,47 +71,24 @@ pub struct VehicleDataState {
     pub vehicle_state: VehicleState,
 }
 
-#[derive(Clone, Debug)]
-pub struct StreamingData {
-    /// The vehicle id.
-    pub id: VehicleId,
-
-    /// Unix timestamp in milliseconds.
-    pub time: Timestamp,
-
-    /// Speed in km per hour.
-    pub speed: Option<u32>,
-
-    /// Odometer reading in km.
-    pub odometer: f64,
-
-    /// State of charge as a percentage.
-    pub soc: u8,
-
-    /// Elevation in meters.
-    pub elevation: u32,
-
-    /// Estimated heading in degrees.
-    pub est_heading: u16,
-
-    /// Estimated latitude in decimal degrees.
-    pub est_lat: f64,
-
-    /// Estimated longitude in decimal degrees.
-    pub est_lng: f64,
-
-    /// Power usage in watts.
-    pub power: Option<i32>,
-
-    /// Shift state of the vehicle.
-    pub shift_state: Option<ShiftState>,
-
-    /// Estimated range in km.
-    pub range: u32,
-
-    /// Estimated range based on energy usage in km.
-    pub est_range: u32,
-
-    /// Heading in degrees.
-    pub heading: u16,
+impl From<&VehicleDataState> for StreamingDataOptional {
+    fn from(data: &VehicleDataState) -> Self {
+        Self {
+            id: data.id,
+            time: data.drive_state.timestamp,
+            speed: data.drive_state.speed,
+            odometer: Some(data.vehicle_state.odometer),
+            soc: Some(data.charge_state.battery_level),
+            // FIXME
+            elevation: Some(0),
+            est_heading: Some(data.drive_state.heading),
+            est_lat: data.drive_state.latitude,
+            est_lng: data.drive_state.longitude,
+            power: data.drive_state.power,
+            shift_state: data.drive_state.shift_state,
+            range: Some(data.charge_state.battery_range),
+            est_range: Some(data.charge_state.est_battery_range),
+            heading: Some(data.drive_state.heading),
+        }
+    }
 }

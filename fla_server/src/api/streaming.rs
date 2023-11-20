@@ -11,14 +11,15 @@ use axum::{
     Router,
 };
 use fla_common::streaming::{
-    ErrorType, FromServerStreamingMessage, StreamingFields, ToServerStreamingMessage,
+    ErrorType, FromServerStreamingMessage, StreamingDataOptional, StreamingFields,
+    ToServerStreamingMessage,
 };
 use tokio::select;
 use tracing::{debug, error};
 
 use crate::{
     tokens::{self, validate_access_token},
-    types::{StreamingData, Vehicle},
+    types::Vehicle,
     Config,
 };
 
@@ -39,33 +40,31 @@ fn deserialize_field_names(str: &str) -> Vec<StreamingFields> {
         .collect()
 }
 
-fn serialize_fields(fields: &[StreamingFields], data: &StreamingData) -> String {
+fn serialize_fields(fields: &[StreamingFields], data: &StreamingDataOptional) -> String {
     let mut result = Vec::new();
     result.push(data.time.to_string());
 
     for field in fields {
         match field {
-            StreamingFields::Speed => {
-                result.push(data.speed.map(|x| u32::to_string(&x)).unwrap_or_default());
-            }
-            StreamingFields::Odometer => result.push(data.odometer.to_string()),
-            StreamingFields::Soc => result.push(data.soc.to_string()),
-            StreamingFields::Elevation => result.push(data.elevation.to_string()),
-            StreamingFields::EstHeading => result.push(data.est_heading.to_string()),
-            StreamingFields::EstLat => result.push(data.est_lat.to_string()),
-            StreamingFields::EstLng => result.push(data.est_lng.to_string()),
-            StreamingFields::Power => {
-                result.push(data.power.map(|x| i32::to_string(&x)).unwrap_or_default());
-            }
-            StreamingFields::ShiftState => {
-                result.push(data.shift_state.map(|x| x.to_string()).unwrap_or_default());
-            }
-            StreamingFields::Range => result.push(data.range.to_string()),
-            StreamingFields::EstRange => result.push(data.est_range.to_string()),
-            StreamingFields::Heading => result.push(data.heading.to_string()),
+            StreamingFields::Speed => push_data(&mut result, data.speed),
+            StreamingFields::Odometer => push_data(&mut result, data.odometer),
+            StreamingFields::Soc => push_data(&mut result, data.soc),
+            StreamingFields::Elevation => push_data(&mut result, data.elevation),
+            StreamingFields::EstHeading => push_data(&mut result, data.est_heading),
+            StreamingFields::EstLat => push_data(&mut result, data.est_lat),
+            StreamingFields::EstLng => push_data(&mut result, data.est_lng),
+            StreamingFields::Power => push_data(&mut result, data.power),
+            StreamingFields::ShiftState => push_data(&mut result, data.shift_state),
+            StreamingFields::Range => push_data(&mut result, data.range),
+            StreamingFields::EstRange => push_data(&mut result, data.est_range),
+            StreamingFields::Heading => push_data(&mut result, data.heading),
         }
     }
     result.join(",")
+}
+
+fn push_data<T: ToString>(result: &mut Vec<String>, data: Option<T>) {
+    result.push(data.map(|x| T::to_string(&x)).unwrap_or_default())
 }
 
 /// The handler for the HTTP request (this gets called when the HTTP GET lands at the start

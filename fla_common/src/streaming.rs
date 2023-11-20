@@ -139,10 +139,10 @@ pub struct StreamingDataOptional {
     pub shift_state: Option<ShiftState>,
 
     /// Estimated range in km.
-    pub range: Option<u32>,
+    pub range: Option<f32>,
 
     /// Estimated range based on energy usage in km.
-    pub est_range: Option<u32>,
+    pub est_range: Option<f32>,
 
     /// Heading in degrees.
     pub heading: Option<u16>,

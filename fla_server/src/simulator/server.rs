@@ -3,10 +3,13 @@
 use std::sync::Arc;
 
 use chrono::{DateTime, Utc};
-use fla_common::types::{
-    ChargeState, ClimateState, DriveState, GranularAccess, GuiSettings, MediaInfo, MediaState,
-    ShiftState, SoftwareUpdate, SpeedLimitMode, VehicleConfig, VehicleDefinition, VehicleId,
-    VehicleState,
+use fla_common::{
+    streaming::StreamingDataOptional,
+    types::{
+        ChargeState, ClimateState, DriveState, GranularAccess, GuiSettings, MediaInfo, MediaState,
+        ShiftState, SoftwareUpdate, SpeedLimitMode, VehicleConfig, VehicleDefinition, VehicleId,
+        VehicleState,
+    },
 };
 use tokio::{
     select,
@@ -15,12 +18,12 @@ use tokio::{
 };
 use tracing::debug;
 
-use crate::types::{StreamingData, VehicleDataState};
+use crate::types::VehicleDataState;
 
 use super::{Command, CommandSender, StreamReceiver};
 
 #[allow(clippy::too_many_lines)]
-fn get_vehicle_data(id: VehicleId, data: &StreamingData, now: DateTime<Utc>) -> VehicleDataState {
+fn get_vehicle_data(id: VehicleId, now: DateTime<Utc>) -> VehicleDataState {
     let timestamp = now.timestamp();
 
     VehicleDataState {
@@ -53,7 +56,7 @@ fn get_vehicle_data(id: VehicleId, data: &StreamingData, now: DateTime<Utc>) -> 
             charge_current_request_max: 48,
             charge_enable_request: true,
             charge_energy_added: 48.45,
-            charge_limit_soc: data.soc,
+            charge_limit_soc: 0,
             charge_limit_soc_max: 100,
             charge_limit_soc_min: 50,
             charge_limit_soc_std: 90,
@@ -145,16 +148,16 @@ fn get_vehicle_data(id: VehicleId, data: &StreamingData, now: DateTime<Utc>) -> 
             active_route_longitude: -122.419_541_8,
             active_route_traffic_minutes_delay: 0,
             gps_as_of: 1_692_137_422,
-            heading: data.est_heading,
-            latitude: Some(data.est_lat),
-            longitude: Some(data.est_lng),
-            native_latitude: data.est_lat,
+            heading: 0,
+            latitude: None,
+            longitude: None,
+            native_latitude: None,
             native_location_supported: 1,
-            native_longitude: data.est_lng,
+            native_longitude: None,
             native_type: "wgs".to_string(),
-            power: data.power,
-            shift_state: data.shift_state,
-            speed: data.speed,
+            power: Some(0),
+            shift_state: Some(ShiftState::Bankrupt),
+            speed: Some(0),
             timestamp,
         },
         gui_settings: GuiSettings {
@@ -252,7 +255,7 @@ fn get_vehicle_data(id: VehicleId, data: &StreamingData, now: DateTime<Utc>) -> 
                 remote_control_enabled: true,
             },
             notifications_supported: true,
-            odometer: data.odometer,
+            odometer: 0.0,
             parsed_calendar_supported: true,
             pf: 0,
             pr: 0,
@@ -322,42 +325,33 @@ pub fn start(vehicle: VehicleDefinition) -> (CommandSender, StreamReceiver) {
     let s_tx_clone = s_tx.clone();
     tokio::spawn(async move {
         // Simulated real time values.
-        let mut data = StreamingData {
-            id: vehicle.id,
-            time: 0,
-            speed: None,
-            odometer: 0.0,
-            soc: 0,
-            elevation: 0,
-            est_heading: 0,
-            est_lat: 0.0,
-            est_lng: 0.0,
-            power: Some(100),
-            shift_state: Some(ShiftState::Tesla),
-            range: 0,
-            est_range: 0,
-            heading: 0,
-        };
 
         let mut next_instant = tokio::time::Instant::now() + std::time::Duration::from_secs(1);
+        let mut data = get_vehicle_data(vehicle.id, Utc::now());
+
         loop {
             select! {
                 () = sleep_until(next_instant) => {
-                    // It is not an error if we are sending and nobody is listening.
-                    _ = s_tx_clone.send(Arc::new(data.clone()));
-                    data.time = Utc::now().timestamp();
+                    data.drive_state.timestamp = Utc::now().timestamp();
+                    data.charge_state.timestamp = Utc::now().timestamp();
+                    data.climate_state.timestamp = Utc::now().timestamp();
+                    data.gui_settings.timestamp = Utc::now().timestamp();
+                    data.vehicle_config.timestamp = Utc::now().timestamp();
+                    data.vehicle_state.timestamp = Utc::now().timestamp();
                     next_instant = tokio::time::Instant::now() + std::time::Duration::from_secs(1);
+
+                    let streaming_data: StreamingDataOptional = (&data).into();
+                    // It is not an error if we are sending and nobody is listening.
+                    _ = s_tx_clone.send(Arc::new(streaming_data.clone()));
                 }
                 cmd = c_rx.recv() => {
-                    let now = Utc::now();
                     match cmd {
                         Some(Command::WakeUp(tx)) => {
                             let rc = Ok(());
                             let _ = tx.send(rc);
                         }
                         Some(Command::GetVehicleData(tx)) => {
-                            let data = get_vehicle_data(vehicle.id, &data, now);
-                            let _ = tx.send(data);
+                            let _ = tx.send(data.clone());
                         }
                         None => {
                             debug!("Command channel closed, exiting simulator");

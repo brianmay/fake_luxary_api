@@ -1,8 +1,7 @@
 //! Dummy test data
 
-use fla_common::types::VehicleDefinition;
-
 use crate::types::Vehicle;
+use fla_common::types::VehicleDefinition;
 
 /// Get test vehicles
 #[must_use]
