@@ -6,16 +6,16 @@ use tokio::sync::{broadcast, mpsc, oneshot};
 
 use crate::{
     errors,
-    types::{StreamingData, VehicleData},
+    types::{StreamingData, VehicleDataState},
 };
 pub mod server;
 
 type WakeUpResponse = Result<(), errors::ResponseError>;
-type VehicleDataResponse = Result<VehicleData, errors::ResponseError>;
+type VehicleDataResponse = Result<VehicleDataState, errors::ResponseError>;
 
 enum Command {
     WakeUp(oneshot::Sender<WakeUpResponse>),
-    GetVehicleData(oneshot::Sender<VehicleData>),
+    GetVehicleData(oneshot::Sender<VehicleDataState>),
 }
 
 /// A handle to the simulator

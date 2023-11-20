@@ -1,11 +1,12 @@
 //! Error handling
-use crate::error;
 use axum::{
     response::{IntoResponse, Response},
     Json,
 };
 use http::StatusCode;
 use tracing::error;
+
+use fla_common::responses::error;
 
 /// An error response
 pub enum ResponseError {

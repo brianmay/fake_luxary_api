@@ -8,9 +8,10 @@ use std::{collections::HashSet, str::FromStr, sync::Arc};
 use tap::Pipe;
 use tracing::error;
 
-use crate::{errors::ResponseError, tokens, types::Vehicle, TeslaResponse};
-use fla_common::types::{
-    self, DriveState, VehicleDataEndpoint, VehicleDataQuery, VehicleDataResponse, VehicleDefinition,
+use crate::{errors::ResponseError, tokens, types::Vehicle};
+use fla_common::{
+    responses::{TeslaResponse, VehicleDataResponse, VehicleResponse, VehiclesResponse},
+    types::{DriveState, VehicleData, VehicleDataEndpoint, VehicleDataQuery, VehicleDefinition},
 };
 
 /// Get a list of vehicles associated with the authenticated account.
@@ -23,7 +24,7 @@ use fla_common::types::{
 pub async fn vehicles_handler(
     State(vehicles): State<Arc<Vec<Vehicle>>>,
     Extension(config): Extension<Arc<tokens::AccessClaims>>,
-) -> Result<Json<TeslaResponse<Vec<types::VehicleDefinition>>>, ResponseError> {
+) -> Result<Json<VehiclesResponse>, ResponseError> {
     if !config
         .scopes
         .contains(&tokens::ScopeEnum::VehicleDeviceData)
@@ -46,7 +47,7 @@ pub async fn vehicle_handler(
     State(vehicles): State<Arc<Vec<Vehicle>>>,
     Extension(config): Extension<Arc<tokens::AccessClaims>>,
     Path(id): Path<u64>,
-) -> Result<Json<TeslaResponse<types::VehicleDefinition>>, ResponseError> {
+) -> Result<Json<VehicleResponse>, ResponseError> {
     if !config
         .scopes
         .contains(&tokens::ScopeEnum::VehicleDeviceData)
@@ -75,7 +76,7 @@ pub async fn vehicle_data_handler(
     Extension(config): Extension<Arc<tokens::AccessClaims>>,
     Path(id): Path<u64>,
     query: Query<VehicleDataQuery>,
-) -> Result<Json<TeslaResponse<VehicleDataResponse>>, ResponseError> {
+) -> Result<Json<VehicleDataResponse>, ResponseError> {
     if !config
         .scopes
         .contains(&tokens::ScopeEnum::VehicleDeviceData)
@@ -120,7 +121,6 @@ pub async fn vehicle_data_handler(
         let location = endpoints.contains(&VehicleDataEndpoint::LocationData);
 
         DriveState {
-            heading: data.drive_state.heading.filter(|_| location),
             latitude: data.drive_state.latitude.filter(|_| location),
             longitude: data.drive_state.longitude.filter(|_| location),
             ..data.drive_state
@@ -145,7 +145,7 @@ pub async fn vehicle_data_handler(
         .pipe(Some)
         .filter(|_| endpoints.contains(&VehicleDataEndpoint::VehicleState));
 
-    let response = VehicleDataResponse {
+    let response = VehicleData {
         id: data.id,
         user_id: data.user_id,
         vehicle_id: data.vehicle_id,

@@ -1,75 +1,22 @@
 #![allow(clippy::unwrap_used)]
 
-use fla_test::{get_token_for_all_scopes, URL};
-use reqwest::Client;
+use fla_common::{
+    responses::TeslaResponse,
+    types::{VehicleData, VehicleDefinition},
+};
+use fla_test::get_client;
 use restest::assert_body_matches;
-use serde::Deserialize;
-use serde_json::Value;
-
-#[allow(dead_code)]
-#[derive(Debug, Deserialize)]
-pub struct Vehicle {
-    /// Vehicle ID for owner-api endpoint.
-    pub id: u64,
-    /// Vehicle ID for streaming or Auto park API.
-    pub vehicle_id: u64,
-
-    /// Vehicle identification number.
-    pub vin: String,
-
-    /// Vehicle display name.
-    pub display_name: String,
-    option_codes: String,
-    color: Option<String>,
-    tokens: Vec<String>,
-    state: String,
-    in_service: bool,
-    id_s: String,
-    calendar_enabled: bool,
-    api_version: u8,
-    backseat_token: Option<String>,
-    backseat_token_updated_at: Option<String>,
-}
-
-#[derive(Debug, Deserialize)]
-struct VehiclesResponse {
-    response: Vec<Vehicle>,
-}
-
-#[derive(Debug, Deserialize)]
-struct VehicleResponse {
-    response: Vehicle,
-}
-
-#[allow(dead_code)]
-#[derive(Debug, Deserialize)]
-struct VehicleDataResponse {
-    response: Value,
-}
 
 #[tokio::test]
 async fn test_vehicles() {
-    let token = get_token_for_all_scopes();
-
-    let url = format!("{URL}api/1/vehicles");
-    let vehicles = Client::new()
-        .get(url)
-        .header("Content-Type", "application/json")
-        .bearer_auth(token.access_token)
-        .send()
-        .await
-        .unwrap()
-        .error_for_status()
-        .unwrap()
-        .json::<VehiclesResponse>()
-        .await
-        .unwrap();
+    let client = get_client();
+    let vehicles = client.get_vehicles().await.unwrap();
 
     assert_body_matches!(
         vehicles,
-        VehiclesResponse {
+        TeslaResponse {
             response: [
-                Vehicle {
+                VehicleDefinition {
                     id: 123_456_789,
                     vehicle_id: _,
                     vin: _,
@@ -85,7 +32,7 @@ async fn test_vehicles() {
                     backseat_token: _,
                     backseat_token_updated_at: _,
                 },
-                Vehicle {
+                VehicleDefinition {
                     id: 123_456_000,
                     vehicle_id: _,
                     vin: _,
@@ -102,33 +49,22 @@ async fn test_vehicles() {
                     backseat_token_updated_at: _,
                 }
             ],
+            error: "",
+            error_description: "",
+            messages: _
         },
     );
 }
 
 #[tokio::test]
 async fn test_vehicle_1() {
-    let token = get_token_for_all_scopes();
-
-    // Test code that use `CONTEXT` for a specific route
-    let url = format!("{URL}api/1/vehicles/{}", 123_456_789);
-    let vehicle = Client::new()
-        .get(url)
-        .header("Content-Type", "application/json")
-        .bearer_auth(token.access_token)
-        .send()
-        .await
-        .unwrap()
-        .error_for_status()
-        .unwrap()
-        .json::<VehicleResponse>()
-        .await
-        .unwrap();
+    let client = get_client();
+    let vehicle = client.get_vehicle(123_456_789).await.unwrap();
 
     assert_body_matches!(
         vehicle,
-        VehicleResponse {
-            response: Vehicle {
+        TeslaResponse {
+            response: VehicleDefinition {
                 id: 123_456_789,
                 vehicle_id: _,
                 vin: _,
@@ -143,34 +79,23 @@ async fn test_vehicle_1() {
                 api_version: _,
                 backseat_token: _,
                 backseat_token_updated_at: _,
-            }
+            },
+            error: "",
+            error_description: "",
+            messages: _
         },
     );
 }
 
 #[tokio::test]
 async fn test_vehicle_2() {
-    let token = get_token_for_all_scopes();
-
-    // Test code that use `CONTEXT` for a specific route
-    let url = format!("{URL}api/1/vehicles/{}", 123_456_000);
-    let vehicle = Client::new()
-        .get(url)
-        .header("Content-Type", "application/json")
-        .bearer_auth(token.access_token)
-        .send()
-        .await
-        .unwrap()
-        .error_for_status()
-        .unwrap()
-        .json::<VehicleResponse>()
-        .await
-        .unwrap();
+    let client = get_client();
+    let vehicle = client.get_vehicle(123_456_000).await.unwrap();
 
     assert_body_matches!(
         vehicle,
-        VehicleResponse {
-            response: Vehicle {
+        TeslaResponse {
+            response: VehicleDefinition {
                 id: 123_456_000,
                 vehicle_id: _,
                 vin: _,
@@ -185,34 +110,23 @@ async fn test_vehicle_2() {
                 api_version: _,
                 backseat_token: _,
                 backseat_token_updated_at: _,
-            }
+            },
+            error: "",
+            error_description: "",
+            messages: _
         },
     );
 }
 
 #[tokio::test]
 async fn test_wakeup() {
-    let token = get_token_for_all_scopes();
-
-    // Test code that use `CONTEXT` for a specific route
-    let url = format!("{URL}api/1/vehicles/{}/wake_up", 123_456_000);
-    let vehicle = Client::new()
-        .post(url)
-        .header("Content-Type", "application/json")
-        .bearer_auth(token.access_token)
-        .send()
-        .await
-        .unwrap()
-        .error_for_status()
-        .unwrap()
-        .json::<VehicleResponse>()
-        .await
-        .unwrap();
+    let client = get_client();
+    let vehicle = client.get_vehicle(123_456_000).await.unwrap();
 
     assert_body_matches!(
         vehicle,
-        VehicleResponse {
-            response: Vehicle {
+        TeslaResponse {
+            response: VehicleDefinition {
                 id: 123_456_000,
                 vehicle_id: _,
                 vin: _,
@@ -227,86 +141,73 @@ async fn test_wakeup() {
                 api_version: _,
                 backseat_token: _,
                 backseat_token_updated_at: _,
-            }
+            },
+            error: "",
+            error_description: "",
+            messages: _
         },
     );
 }
 
 #[tokio::test]
 async fn test_vehicle_data() {
-    let token = get_token_for_all_scopes();
+    let endpoints = [
+        fla_common::types::VehicleDataEndpoint::ChargeState,
+        fla_common::types::VehicleDataEndpoint::ClimateState,
+        fla_common::types::VehicleDataEndpoint::DriveState,
+        fla_common::types::VehicleDataEndpoint::LocationData,
+        fla_common::types::VehicleDataEndpoint::GuiSettings,
+        fla_common::types::VehicleDataEndpoint::VehicleConfig,
+        fla_common::types::VehicleDataEndpoint::VehicleState,
+        fla_common::types::VehicleDataEndpoint::VehicleDataCombo,
+    ]
+    .into();
 
-    let endpoints = "charge_state,climate_state,closures_state,drive_state,gui_settings,location_data,vehicle_config,vehicle_state,vehicle_data_combo";
-    let query = [("endpoints", endpoints)];
-
-    // Test code that use `CONTEXT` for a specific route
-    let url = format!("{URL}api/1/vehicles/{}/vehicle_data", 123_456_000);
-    let vehicle = Client::new()
-        .get(url)
-        .query(&query)
-        .header("Content-Type", "application/json")
-        .bearer_auth(token.access_token)
-        .send()
-        .await
-        .unwrap()
-        .error_for_status()
-        .unwrap()
-        .json::<VehicleDataResponse>()
+    let client = get_client();
+    let vehicle = client
+        .get_vehicle_data(123_456_000, endpoints)
         .await
         .unwrap();
 
-    assert_body_matches!(vehicle, VehicleDataResponse { response: _ },);
-    vehicle
-        .response
-        .as_object()
-        .unwrap()
-        .get("charge_state")
-        .unwrap()
-        .as_object()
-        .unwrap();
+    println!("{:#?}", vehicle.response);
 
-    vehicle
-        .response
-        .as_object()
-        .unwrap()
-        .get("climate_state")
-        .unwrap()
-        .as_object()
-        .unwrap();
-
-    vehicle
-        .response
-        .as_object()
-        .unwrap()
-        .get("drive_state")
-        .unwrap()
-        .as_object()
-        .unwrap();
-
-    vehicle
-        .response
-        .as_object()
-        .unwrap()
-        .get("gui_settings")
-        .unwrap()
-        .as_object()
-        .unwrap();
-
-    vehicle
-        .response
-        .as_object()
-        .unwrap()
-        .get("vehicle_config")
-        .unwrap()
-        .as_object()
-        .unwrap();
-
-    vehicle
-        .response
-        .as_object()
-        .unwrap()
-        .get("vehicle_state")
-        .unwrap()
-        .as_object()
-        .unwrap();
+    assert_body_matches!(
+        vehicle,
+        TeslaResponse {
+            response: VehicleData {
+                id: 123_456_000,
+                user_id: _,
+                vehicle_id: _,
+                vin: _,
+                color: _,
+                access_type: _,
+                granular_access: _,
+                tokens: _,
+                state: _,
+                in_service: _,
+                id_s: _,
+                calendar_enabled: _,
+                api_version: _,
+                backseat_token: _,
+                backseat_token_updated_at: _,
+                charge_state: _,
+                climate_state: _,
+                drive_state: _,
+                gui_settings: _,
+                vehicle_config: _,
+                vehicle_state: _,
+            },
+            error: "",
+            error_description: "",
+            messages: _
+        },
+    );
+    vehicle.response.charge_state.unwrap();
+    vehicle.response.climate_state.unwrap();
+    let ds = vehicle.response.drive_state.unwrap();
+    ds.latitude.unwrap();
+    ds.longitude.unwrap();
+    vehicle.response.gui_settings.unwrap();
+    vehicle.response.vehicle_config.unwrap();
+    vehicle.response.vehicle_state.unwrap();
 }

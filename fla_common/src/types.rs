@@ -2,14 +2,18 @@
 
 use std::str::FromStr;
 
-use serde::Serialize;
+use serde::{Deserialize, Serialize};
+use thiserror::Error;
 
 /// A timestamp
 pub type Timestamp = i64;
 
+/// A vehicle ID
+pub type VehicleId = u64;
+
 /// The data associated with a Vehicle
 #[allow(dead_code)]
-#[derive(Debug, Serialize, Clone)]
+#[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct VehicleDefinition {
     /// Vehicle ID for owner-api endpoint.
     pub id: u64,
@@ -54,8 +58,14 @@ pub struct VehicleDefinition {
     pub backseat_token_updated_at: Option<String>,
 }
 
+#[derive(Error, Debug)]
+pub enum ParseShiftStateError {
+    #[error("Invalid shift state: {0}")]
+    InvalidShiftState(String),
+}
+
 /// Enum representing a vehicle's shift state.
-#[derive(Debug, Clone, Copy, Serialize)]
+#[derive(Debug, Clone, Copy, Serialize, Deserialize)]
 pub enum ShiftState {
     /// FIXME
     Toyota,
@@ -73,6 +83,21 @@ pub enum ShiftState {
     Old,
 }
 
+impl FromStr for ShiftState {
+    type Err = ParseShiftStateError;
+
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        match s {
+            "P" => Ok(Self::Toyota),
+            "R" => Ok(Self::Bankrupt),
+            "D" => Ok(Self::Tesla),
+            "N" => Ok(Self::New),
+            "1" => Ok(Self::Old),
+            _ => Err(ParseShiftStateError::InvalidShiftState(s.to_string())),
+        }
+    }
+}
+
 impl ToString for ShiftState {
     fn to_string(&self) -> String {
         match self {
@@ -87,14 +112,14 @@ impl ToString for ShiftState {
 }
 
 #[allow(missing_docs)]
-#[derive(Default, Debug, Clone, Serialize)]
+#[derive(Default, Debug, Clone, Serialize, Deserialize)]
 pub struct GranularAccess {
     pub hide_private: bool,
 }
 
 #[allow(missing_docs)]
 #[allow(clippy::struct_excessive_bools)]
-#[derive(Default, Debug, Clone, Serialize)]
+#[derive(Default, Debug, Clone, Serialize, Deserialize)]
 pub struct ChargeState {
     pub battery_heater_on: bool,
     pub battery_level: i64,
@@ -153,7 +178,7 @@ pub struct ChargeState {
 
 #[allow(missing_docs)]
 #[allow(clippy::struct_excessive_bools)]
-#[derive(Default, Debug, Clone, PartialEq, Serialize)]
+#[derive(Default, Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct ClimateState {
     pub allow_cabin_overheat_protection: bool,
     pub auto_seat_climate_left: bool,
@@ -197,13 +222,13 @@ pub struct ClimateState {
 }
 
 #[allow(missing_docs)]
-#[derive(Default, Debug, Clone, Serialize)]
+#[derive(Default, Debug, Clone, Serialize, Deserialize)]
 pub struct DriveState {
     pub active_route_latitude: f64,
     pub active_route_longitude: f64,
     pub active_route_traffic_minutes_delay: i64,
     pub gps_as_of: i64,
-    pub heading: Option<u16>,
+    pub heading: u16,
     pub latitude: Option<f64>,
     pub longitude: Option<f64>,
     pub native_latitude: f64,
@@ -217,7 +242,7 @@ pub struct DriveState {
 }
 
 #[allow(missing_docs)]
-#[derive(Default, Debug, Clone, Serialize)]
+#[derive(Default, Debug, Clone, Serialize, Deserialize)]
 pub struct GuiSettings {
     pub gui_24_hour_time: bool,
     pub gui_charge_rate_units: String,
@@ -231,7 +256,7 @@ pub struct GuiSettings {
 
 #[allow(missing_docs)]
 #[allow(clippy::struct_excessive_bools)]
-#[derive(Default, Debug, Clone, Serialize)]
+#[derive(Default, Debug, Clone, Serialize, Deserialize)]
 pub struct VehicleConfig {
     pub aux_park_lamps: String,
     pub badge_version: i64,
@@ -282,7 +307,7 @@ pub struct VehicleConfig {
 
 #[allow(missing_docs)]
 #[allow(clippy::struct_excessive_bools)]
-#[derive(Default, Debug, Clone, Serialize)]
+#[derive(Default, Debug, Clone, Serialize, Deserialize)]
 pub struct VehicleState {
     pub api_version: i64,
     pub autopark_state_v3: String,
@@ -353,7 +378,7 @@ pub struct VehicleState {
 }
 
 #[allow(missing_docs)]
-#[derive(Default, Debug, Clone, PartialEq, Serialize)]
+#[derive(Default, Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct MediaInfo {
     pub a2dp_source_name: String,
     pub audio_volume: f64,
@@ -370,13 +395,13 @@ pub struct MediaInfo {
 }
 
 #[allow(missing_docs)]
-#[derive(Default, Debug, Clone, Serialize)]
+#[derive(Default, Debug, Clone, Serialize, Deserialize)]
 pub struct MediaState {
     pub remote_control_enabled: bool,
 }
 
 #[allow(missing_docs)]
-#[derive(Default, Debug, Clone, Serialize)]
+#[derive(Default, Debug, Clone, Serialize, Deserialize)]
 pub struct SoftwareUpdate {
     pub download_perc: i64,
     pub expected_duration_sec: i64,
@@ -386,7 +411,7 @@ pub struct SoftwareUpdate {
 }
 
 #[allow(missing_docs)]
-#[derive(Default, Debug, Clone, Serialize)]
+#[derive(Default, Debug, Clone, Serialize, Deserialize)]
 pub struct SpeedLimitMode {
     pub active: bool,
     pub current_limit_mph: i64,
@@ -428,10 +453,27 @@ impl FromStr for VehicleDataEndpoint {
     }
 }
 
+impl ToString for VehicleDataEndpoint {
+    fn to_string(&self) -> String {
+        match self {
+            Self::ChargeState => "charge_state",
+            Self::ClimateState => "climate_state",
+            Self::ClosuresState => "closures_state",
+            Self::DriveState => "drive_state",
+            Self::GuiSettings => "gui_settings",
+            Self::LocationData => "location_data",
+            Self::VehicleConfig => "vehicle_config",
+            Self::VehicleState => "vehicle_state",
+            Self::VehicleDataCombo => "vehicle_data_combo",
+        }
+        .to_string()
+    }
+}
+
 #[allow(missing_docs)]
-#[derive(Default, Debug, Clone, Serialize)]
-pub struct VehicleDataResponse {
-    pub id: i64,
+#[derive(Default, Debug, Clone, Serialize, Deserialize)]
+pub struct VehicleData {
+    pub id: VehicleId,
     pub user_id: i64,
     pub vehicle_id: i64,
     pub vin: String,
@@ -455,7 +497,7 @@ pub struct VehicleDataResponse {
 }
 
 /// Query parameters for vehicle data
-#[derive(serde::Deserialize, Debug)]
+#[derive(Serialize, Deserialize, Debug)]
 pub struct VehicleDataQuery {
     /// List of endpoints to retrieve
     pub endpoints: Option<String>,

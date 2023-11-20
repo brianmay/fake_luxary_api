@@ -8,14 +8,14 @@ use axum::extract::State;
 use axum::routing::post;
 use axum::Json;
 use axum::Router;
-use chrono::Utc;
+use fla_common::auth::RawToken;
 use fla_common::auth::RefreshTokenRequest;
 use fla_common::auth::TokenRequest;
-use fla_common::auth::TokenResult;
 use tracing::error;
 
 use crate::errors;
 use crate::tokens;
+use crate::tokens::new_token;
 use crate::tokens::ScopeEnum;
 use crate::Config;
 
@@ -30,7 +30,7 @@ pub fn router(config: &Config) -> Router {
 fn renew_token(
     request: &RefreshTokenRequest,
     config: &tokens::Config,
-) -> Result<TokenResult, errors::ResponseError> {
+) -> Result<RawToken, errors::ResponseError> {
     let claims = match tokens::validate_refresh_token(&request.refresh_token, config) {
         Ok(claims) => claims,
         Err(err) => {
@@ -64,24 +64,11 @@ fn renew_token(
         ));
     }
 
-    let token = tokens::Token::new(config, &scopes).map_err(|err| {
+    let token = new_token(config, &scopes).map_err(|err| {
         errors::ResponseError::internal_error(format!("Could not create token: {err:?}"))
     })?;
 
-    let expires_in = (token.expires_at - Utc::now()).num_seconds();
-    let expires_in = u64::try_from(expires_in).map_err(|err| {
-        errors::ResponseError::internal_error(format!("Could not convert timestamp: {err:?}"))
-    })?;
-
-    let response = TokenResult {
-        access_token: token.access_token,
-        refresh_token: token.refresh_token,
-        id_token: "zzzz".into(),
-        token_type: "xxxx".into(),
-        expires_in,
-    };
-
-    Ok(response)
+    Ok(token)
 }
 
 /// Handle a token request
@@ -95,7 +82,7 @@ fn renew_token(
 pub async fn token_handler(
     State(config): State<Arc<tokens::Config>>,
     Json(body): Json<TokenRequest>,
-) -> Result<Json<TokenResult>, errors::ResponseError> {
+) -> Result<Json<RawToken>, errors::ResponseError> {
     match body {
         TokenRequest::RefreshToken(request) => Ok(Json(renew_token(&request, &config)?)),
         TokenRequest::ClientCredentials(_) | TokenRequest::AuthorizationCode(_) => {

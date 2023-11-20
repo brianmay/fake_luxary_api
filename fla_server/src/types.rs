@@ -3,7 +3,7 @@ use std::fmt::Formatter;
 use crate::simulator;
 use fla_common::types::{
     ChargeState, ClimateState, DriveState, GranularAccess, GuiSettings, ShiftState, Timestamp,
-    VehicleConfig, VehicleDefinition, VehicleState,
+    VehicleConfig, VehicleDefinition, VehicleId, VehicleState,
 };
 use serde::Serialize;
 
@@ -44,8 +44,8 @@ impl std::fmt::Debug for Vehicle {
 /// Current state of all Vehicle Data
 #[allow(missing_docs)]
 #[derive(Default, Debug, Clone, Serialize)]
-pub struct VehicleData {
-    pub id: i64,
+pub struct VehicleDataState {
+    pub id: VehicleId,
     pub user_id: i64,
     pub vehicle_id: i64,
     pub vin: String,
@@ -68,9 +68,11 @@ pub struct VehicleData {
     pub vehicle_state: VehicleState,
 }
 
-#[derive(Debug, Clone)]
-/// Struct representing streaming data from a vehicle.
+#[derive(Clone, Debug)]
 pub struct StreamingData {
+    /// The vehicle id.
+    pub id: VehicleId,
+
     /// Unix timestamp in milliseconds.
     pub time: Timestamp,
 

@@ -5,7 +5,8 @@ use std::sync::Arc;
 use chrono::{DateTime, Utc};
 use fla_common::types::{
     ChargeState, ClimateState, DriveState, GranularAccess, GuiSettings, MediaInfo, MediaState,
-    ShiftState, SoftwareUpdate, SpeedLimitMode, VehicleConfig, VehicleDefinition, VehicleState,
+    ShiftState, SoftwareUpdate, SpeedLimitMode, VehicleConfig, VehicleDefinition, VehicleId,
+    VehicleState,
 };
 use tokio::{
     select,
@@ -14,16 +15,16 @@ use tokio::{
 };
 use tracing::debug;
 
-use crate::types::{StreamingData, VehicleData};
+use crate::types::{StreamingData, VehicleDataState};
 
 use super::{Command, CommandSender, StreamReceiver};
 
 #[allow(clippy::too_many_lines)]
-fn get_vehicle_data(data: &StreamingData, now: DateTime<Utc>) -> VehicleData {
+fn get_vehicle_data(id: VehicleId, data: &StreamingData, now: DateTime<Utc>) -> VehicleDataState {
     let timestamp = now.timestamp();
 
-    VehicleData {
-        id: 100_021,
+    VehicleDataState {
+        id,
         user_id: 800_001,
         vehicle_id: 99_999,
         vin: "TEST00000000VIN01".to_string(),
@@ -38,7 +39,7 @@ fn get_vehicle_data(data: &StreamingData, now: DateTime<Utc>) -> VehicleData {
         ],
         state: None,
         in_service: false,
-        id_s: "100021".to_string(),
+        id_s: id.to_string(),
         calendar_enabled: true,
         api_version: 54,
         backseat_token: None,
@@ -144,7 +145,7 @@ fn get_vehicle_data(data: &StreamingData, now: DateTime<Utc>) -> VehicleData {
             active_route_longitude: -122.419_541_8,
             active_route_traffic_minutes_delay: 0,
             gps_as_of: 1_692_137_422,
-            heading: Some(data.est_heading),
+            heading: data.est_heading,
             latitude: Some(data.est_lat),
             longitude: Some(data.est_lng),
             native_latitude: data.est_lat,
@@ -314,7 +315,7 @@ fn get_vehicle_data(data: &StreamingData, now: DateTime<Utc>) -> VehicleData {
 /// Start the simulator
 #[must_use]
 #[allow(clippy::needless_pass_by_value)]
-pub fn start(_vehicle: VehicleDefinition) -> (CommandSender, StreamReceiver) {
+pub fn start(vehicle: VehicleDefinition) -> (CommandSender, StreamReceiver) {
     let (c_tx, mut c_rx) = mpsc::channel(1);
     let (s_tx, _s_rx) = broadcast::channel(1);
 
@@ -322,6 +323,7 @@ pub fn start(_vehicle: VehicleDefinition) -> (CommandSender, StreamReceiver) {
     tokio::spawn(async move {
         // Simulated real time values.
         let data = StreamingData {
+            id: vehicle.id,
             time: 0,
             speed: None,
             odometer: 0.0,
@@ -353,7 +355,7 @@ pub fn start(_vehicle: VehicleDefinition) -> (CommandSender, StreamReceiver) {
                             let _ = tx.send(rc);
                         }
                         Some(Command::GetVehicleData(tx)) => {
-                            let data = get_vehicle_data(&data, now);
+                            let data = get_vehicle_data(vehicle.id, &data, now);
                             let _ = tx.send(data);
                         }
                         None => {

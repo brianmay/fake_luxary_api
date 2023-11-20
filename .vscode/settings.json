@@ -28,6 +28,7 @@
         "reqwest",
         "restest",
         "STCP",
+        "teslamotors",
         "thiserror",
         "tirepressure",
         "tpms",

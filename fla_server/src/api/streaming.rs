@@ -10,7 +10,9 @@ use axum::{
     routing::get,
     Router,
 };
-use serde::{Deserialize, Serialize};
+use fla_common::streaming::{
+    ErrorType, FromServerStreamingMessage, StreamingFields, ToServerStreamingMessage,
+};
 use tokio::select;
 use tracing::{debug, error};
 
@@ -28,111 +30,42 @@ pub fn router(config: &Config) -> Router {
         .with_state(config.clone())
 }
 
-#[derive(Deserialize, Serialize, Debug)]
-#[serde(rename_all = "snake_case")]
-enum Fields {
-    Speed,
-    Odometer,
-    Soc,
-    Elevation,
-    EstHeading,
-    EstLat,
-    EstLng,
-    Power,
-    ShiftState,
-    Range,
-    EstRange,
-    Heading,
+fn deserialize_field_names(str: &str) -> Vec<StreamingFields> {
+    str.split(',')
+        .filter_map(|x| match x.parse() {
+            Ok(field) => Some(field),
+            Err(_) => None,
+        })
+        .collect()
 }
 
-fn deserialize_field_names(str: &str) -> Vec<Fields> {
-    let mut result = Vec::new();
-    for field in str.split(',') {
-        match field {
-            "speed" => result.push(Fields::Speed),
-            "odometer" => result.push(Fields::Odometer),
-            "soc" => result.push(Fields::Soc),
-            "elevation" => result.push(Fields::Elevation),
-            "est_heading" => result.push(Fields::EstHeading),
-            "est_lat" => result.push(Fields::EstLat),
-            "est_lng" => result.push(Fields::EstLng),
-            "power" => result.push(Fields::Power),
-            "shift_state" => result.push(Fields::ShiftState),
-            "range" => result.push(Fields::Range),
-            "est_range" => result.push(Fields::EstRange),
-            "heading" => result.push(Fields::Heading),
-            _ => {}
-        }
-    }
-    result
-}
-
-fn serialize_fields(fields: &[Fields], data: &StreamingData) -> String {
+fn serialize_fields(fields: &[StreamingFields], data: &StreamingData) -> String {
     let mut result = Vec::new();
     result.push(data.time.to_string());
+
     for field in fields {
         match field {
-            Fields::Speed => {
+            StreamingFields::Speed => {
                 result.push(data.speed.map(|x| u32::to_string(&x)).unwrap_or_default());
             }
-            Fields::Odometer => result.push(data.odometer.to_string()),
-            Fields::Soc => result.push(data.soc.to_string()),
-            Fields::Elevation => result.push(data.elevation.to_string()),
-            Fields::EstHeading => result.push(data.est_heading.to_string()),
-            Fields::EstLat => result.push(data.est_lat.to_string()),
-            Fields::EstLng => result.push(data.est_lng.to_string()),
-            Fields::Power => {
+            StreamingFields::Odometer => result.push(data.odometer.to_string()),
+            StreamingFields::Soc => result.push(data.soc.to_string()),
+            StreamingFields::Elevation => result.push(data.elevation.to_string()),
+            StreamingFields::EstHeading => result.push(data.est_heading.to_string()),
+            StreamingFields::EstLat => result.push(data.est_lat.to_string()),
+            StreamingFields::EstLng => result.push(data.est_lng.to_string()),
+            StreamingFields::Power => {
                 result.push(data.power.map(|x| i32::to_string(&x)).unwrap_or_default());
             }
-            Fields::ShiftState => {
+            StreamingFields::ShiftState => {
                 result.push(data.shift_state.map(|x| x.to_string()).unwrap_or_default());
             }
-            Fields::Range => result.push(data.range.to_string()),
-            Fields::EstRange => result.push(data.est_range.to_string()),
-            Fields::Heading => result.push(data.heading.to_string()),
+            StreamingFields::Range => result.push(data.range.to_string()),
+            StreamingFields::EstRange => result.push(data.est_range.to_string()),
+            StreamingFields::Heading => result.push(data.heading.to_string()),
         }
     }
     result.join(",")
-}
-
-#[derive(Deserialize, Serialize, Debug)]
-enum ErrorType {
-    #[serde(rename = "vehicle_disconnected")]
-    VehicleDisconnected,
-
-    #[serde(rename = "vehicle_error")]
-    VehicleError,
-
-    #[serde(rename = "client_error")]
-    ClientError,
-}
-
-#[derive(Deserialize, Serialize, Debug)]
-#[serde(tag = "msg_type")]
-enum TeslaInMessage {
-    #[serde(rename = "data:subscribe_oauth")]
-    DataSubscribeOauth {
-        token: String,
-        value: String,
-        tag: u64,
-    },
-}
-
-#[derive(Deserialize, Serialize, Debug)]
-#[serde(tag = "msg_type")]
-enum TeslaOutMessage {
-    #[serde(rename = "control:hello")]
-    ControlHello { connection_timeout: u64 },
-
-    #[serde(rename = "data:update")]
-    DataUpdate { tag: u64, value: String },
-
-    #[serde(rename = "data:error")]
-    DataError {
-        tag: String,
-        error_type: ErrorType,
-        value: String,
-    },
 }
 
 /// The handler for the HTTP request (this gets called when the HTTP GET lands at the start
@@ -183,7 +116,7 @@ async fn handle_socket(
         }
     };
 
-    let Ok(msg) = serde_json::from_str::<TeslaInMessage>(&msg) else {
+    let Ok(msg) = serde_json::from_str::<ToServerStreamingMessage>(&msg) else {
         error!("Could not parse message!");
         send_error(
             &mut socket,
@@ -197,7 +130,7 @@ async fn handle_socket(
     };
 
     let (token, value, tag) = match msg {
-        TeslaInMessage::DataSubscribeOauth { token, value, tag } => (token, value, tag),
+        ToServerStreamingMessage::DataSubscribeOauth { token, value, tag } => (token, value, tag),
     };
 
     // tag is the vehicle_id
@@ -237,7 +170,7 @@ async fn handle_socket(
     // this will likely be the Pong for our Ping or a hello message from client.
     // waiting for message from a client will block this task, but will not block other client's
     // connections.
-    let hello = TeslaOutMessage::ControlHello {
+    let hello = FromServerStreamingMessage::ControlHello {
         connection_timeout: 30000,
     };
     if send_message(&mut socket, hello).await.is_err() {
@@ -281,7 +214,7 @@ async fn handle_socket(
                     }
                 };
                 let value = serialize_fields(&fields, &data);
-                let msg = TeslaOutMessage::DataUpdate { tag, value };
+                let msg = FromServerStreamingMessage::DataUpdate { tag, value };
 
                 debug!("Sending: {msg:?}");
                 if send_message(&mut socket, msg).await.is_err() {
@@ -308,7 +241,10 @@ async fn handle_socket(
     }
 }
 
-async fn send_message(socket: &mut WebSocket, message: TeslaOutMessage) -> Result<(), ()> {
+async fn send_message(
+    socket: &mut WebSocket,
+    message: FromServerStreamingMessage,
+) -> Result<(), ()> {
     let Ok(text) = serde_json::to_string(&message) else {
         error!("Could not serialize message!");
         return Err(());
@@ -323,7 +259,7 @@ async fn send_message(socket: &mut WebSocket, message: TeslaOutMessage) -> Resul
 }
 
 async fn send_error(socket: &mut WebSocket, tag: String, error_type: ErrorType, value: String) {
-    let msg = TeslaOutMessage::DataError {
+    let msg = FromServerStreamingMessage::DataError {
         tag,
         error_type,
         value,

@@ -317,15 +317,27 @@ checksum = "25cbce373ec4653f1a01a31e8a5e5ec0c622dc27ff9c4e6606eefef5cbbed4a5"
 name = "fla_client"
 version = "0.1.0"
 dependencies = [
+ "chrono",
  "fla_common",
+ "futures-util",
+ "http",
  "reqwest",
+ "serde_json",
+ "tap",
+ "thiserror",
+ "tokio",
+ "tokio-tungstenite",
+ "tracing",
+ "url",
 ]
 
 [[package]]
 name = "fla_common"
 version = "0.1.0"
 dependencies = [
+ "chrono",
  "serde",
+ "thiserror",
 ]
 
 [[package]]
@@ -353,18 +365,12 @@ dependencies = [
 name = "fla_test"
 version = "0.1.0"
 dependencies = [
+ "chrono",
  "fla_client",
  "fla_common",
  "fla_server",
- "futures-util",
- "http",
- "reqwest",
  "restest",
- "serde",
- "serde_json",
  "tokio",
- "tokio-tungstenite",
- "url",
 ]
 
 [[package]]

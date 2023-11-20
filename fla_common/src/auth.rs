@@ -47,8 +47,8 @@ pub enum TokenRequest {
 }
 
 /// Raw Tesla token from API
-#[derive(serde::Deserialize, serde::Serialize)]
-pub struct TokenResult {
+#[derive(serde::Deserialize, serde::Serialize, Debug)]
+pub struct RawToken {
     pub access_token: String,
     pub refresh_token: String,
     pub id_token: String,

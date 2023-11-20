@@ -1,6 +1,7 @@
 use std::collections::HashSet;
 
-use fla_server::tokens;
+use fla_common::auth::RawToken;
+use fla_server::tokens::{self, new_token};
 
 fn main() {
     // This config must match the server.
@@ -21,7 +22,7 @@ fn main() {
     .into_iter()
     .collect::<HashSet<tokens::ScopeEnum>>();
 
-    let token = tokens::Token::new(&config, &scopes).unwrap();
+    let token: RawToken = new_token(&config, &scopes).unwrap();
 
     println!("{:?}", token);
 }

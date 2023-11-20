@@ -1,27 +1,9 @@
 #![allow(clippy::unwrap_used)]
 
-use fla_server::tokens::{self, validate_access_token, validate_refresh_token, Token};
-use serde::{Deserialize, Serialize};
+use chrono::Utc;
+use fla_client::Token;
+use fla_server::tokens::{self, new_token, validate_access_token, validate_refresh_token};
 use std::collections::HashSet;
-
-#[derive(Serialize)]
-struct RefreshTokenRequest {
-    grant_type: String,
-    refresh_token: String,
-    client_id: String,
-    scope: String,
-}
-
-/// Raw Tesla token from API
-#[allow(dead_code)]
-#[derive(Deserialize, Debug)]
-pub struct TokenResponse {
-    access_token: String,
-    refresh_token: String,
-    id_token: String,
-    token_type: String,
-    expires_in: u64,
-}
 
 #[tokio::test]
 async fn test_renew_token() {
@@ -43,13 +25,18 @@ async fn test_renew_token() {
     .into_iter()
     .collect::<HashSet<tokens::ScopeEnum>>();
 
-    let token = Token::new(&config, &scopes).unwrap();
-    let client = fla_test::get_client();
-    let new_token = client.refresh_token(token.refresh_token).await.unwrap();
+    let token: Token = new_token(&config, &scopes).unwrap().into();
+    let old_expires_at = token.expires_at;
+    let old_renew_at = token.renew_at;
 
-    // assert!(new_token.access_token != token.access_token);
-    // assert!(new_token.refresh_token != token.refresh_token);
-    assert!(new_token.expires_in > 0);
+    let mut client = fla_test::get_client_with_token(token);
+    client.refresh_token().await.unwrap();
+
+    let new_token = client.token();
+    assert!(new_token.expires_at > Utc::now());
+    // assert!(new_token.renew_at > Utc::now());
+    assert!(new_token.expires_at > old_expires_at);
+    assert!(new_token.renew_at > old_renew_at);
 
     // We do not expect user_data or vehicle_device_data to be in the scopes
     let expected_scopes = [

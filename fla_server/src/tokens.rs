@@ -2,7 +2,8 @@
 
 use std::{collections::HashSet, str::FromStr};
 
-use chrono::{DateTime, Duration, Utc};
+use chrono::{Duration, Utc};
+use fla_common::auth::RawToken;
 use jsonwebtoken::{decode, encode, Algorithm, DecodingKey, EncodingKey, Header, Validation};
 use serde::{Deserialize, Serialize};
 use thiserror::Error;
@@ -92,17 +93,6 @@ pub struct Config {
     pub secret: String,
 }
 
-/// A new token
-#[derive(Debug)]
-pub struct Token {
-    /// The access token
-    pub access_token: String,
-    /// The refresh token
-    pub refresh_token: String,
-    /// The expiration time of the token
-    pub expires_at: DateTime<Utc>,
-}
-
 /// An error generating a token
 #[derive(Error, Debug)]
 pub enum TokenGenerationError {
@@ -114,47 +104,51 @@ pub enum TokenGenerationError {
     TimestampError,
 }
 
-impl Token {
-    /// Generate a new token with the given scopes
-    ///
-    /// # Errors
-    ///
-    /// If the token cannot be generated, an error will be returned.
-    pub fn new(config: &Config, scopes: &HashSet<ScopeEnum>) -> Result<Self, TokenGenerationError> {
-        let encoding_key = EncodingKey::from_secret(config.secret.as_ref());
-        let expires_at = Utc::now() + Duration::minutes(10);
+/// Generate a new token with the given scopes
+///
+/// # Errors
+///
+/// If the token cannot be generated, an error will be returned.
+pub fn new_token(
+    config: &Config,
+    scopes: &HashSet<ScopeEnum>,
+) -> Result<RawToken, TokenGenerationError> {
+    let encoding_key = EncodingKey::from_secret(config.secret.as_ref());
+    let expires_in = Duration::minutes(10);
+    let expires_at = Utc::now() + expires_in;
 
-        let timestamp = usize::try_from(expires_at.timestamp())
-            .map_err(|_| TokenGenerationError::TimestampError)?;
+    let timestamp = usize::try_from(expires_at.timestamp())
+        .map_err(|_| TokenGenerationError::TimestampError)?;
 
-        let access_token = encode(
-            &Header::default(),
-            &AccessClaims {
-                purpose: Purpose::Access,
-                exp: timestamp,
-                scopes: scopes.clone(),
-            },
-            &encoding_key,
-        )?;
+    let access_token = encode(
+        &Header::default(),
+        &AccessClaims {
+            purpose: Purpose::Access,
+            exp: timestamp,
+            scopes: scopes.clone(),
+        },
+        &encoding_key,
+    )?;
 
-        let refresh_token = encode(
-            &Header::default(),
-            &RefreshClaims {
-                purpose: Purpose::Refresh,
-                exp: timestamp,
-                scopes: scopes.clone(),
-            },
-            &encoding_key,
-        )?;
+    let refresh_token = encode(
+        &Header::default(),
+        &RefreshClaims {
+            purpose: Purpose::Refresh,
+            exp: timestamp,
+            scopes: scopes.clone(),
+        },
+        &encoding_key,
+    )?;
 
-        let token = Self {
-            access_token,
-            refresh_token,
-            expires_at,
-        };
+    let token = RawToken {
+        access_token,
+        refresh_token,
+        id_token: "".to_string(),
+        token_type: "Bearer".to_string(),
+        expires_in: expires_in.num_seconds() as u64,
+    };
 
-        Ok(token)
-    }
+    Ok(token)
 }
 
 /// An error validating a token
