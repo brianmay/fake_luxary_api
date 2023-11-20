@@ -4,7 +4,7 @@ use std::sync::Arc;
 
 use chrono::{DateTime, Utc};
 use fla_common::{
-    streaming::StreamingDataOptional,
+    streaming::StreamingData,
     types::{
         ChargeState, ClimateState, DriveState, GranularAccess, GuiSettings, MediaInfo, MediaState,
         ShiftState, SoftwareUpdate, SpeedLimitMode, VehicleConfig, VehicleDefinition, VehicleId,
@@ -340,7 +340,7 @@ pub fn start(vehicle: VehicleDefinition) -> (CommandSender, StreamReceiver) {
                     data.vehicle_state.timestamp = Utc::now().timestamp();
                     next_instant = tokio::time::Instant::now() + std::time::Duration::from_secs(1);
 
-                    let streaming_data: StreamingDataOptional = (&data).into();
+                    let streaming_data: StreamingData = (&data).into();
                     // It is not an error if we are sending and nobody is listening.
                     _ = s_tx_clone.send(Arc::new(streaming_data.clone()));
                 }

@@ -11,8 +11,7 @@ use axum::{
     Router,
 };
 use fla_common::streaming::{
-    ErrorType, FromServerStreamingMessage, StreamingDataOptional, StreamingFields,
-    ToServerStreamingMessage,
+    ErrorType, FromServerStreamingMessage, StreamingData, StreamingFields, ToServerStreamingMessage,
 };
 use tokio::select;
 use tracing::{debug, error};
@@ -40,7 +39,7 @@ fn deserialize_field_names(str: &str) -> Vec<StreamingFields> {
         .collect()
 }
 
-fn serialize_fields(fields: &[StreamingFields], data: &StreamingDataOptional) -> String {
+fn serialize_fields(fields: &[StreamingFields], data: &StreamingData) -> String {
     let mut result = Vec::new();
     result.push(data.time.to_string());
 

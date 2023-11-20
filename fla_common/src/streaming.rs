@@ -104,7 +104,7 @@ impl ToString for StreamingFields {
 
 #[derive(Debug, Clone)]
 /// Struct representing streaming data from a vehicle.
-pub struct StreamingDataOptional {
+pub struct StreamingData {
     /// The vehicle id.
     pub id: VehicleId,
 
@@ -148,7 +148,7 @@ pub struct StreamingDataOptional {
     pub heading: Option<u16>,
 }
 
-impl StreamingDataOptional {
+impl StreamingData {
     pub fn new(id: VehicleId, time: Timestamp) -> Self {
         Self {
             id,

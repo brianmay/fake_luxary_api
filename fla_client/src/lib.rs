@@ -5,8 +5,7 @@ use fla_common::{
     auth::{RawToken, RefreshTokenRequest, TokenRequest},
     responses::{VehicleDataResponse, VehicleResponse, VehiclesResponse},
     streaming::{
-        FromServerStreamingMessage, StreamingDataOptional, StreamingFields,
-        ToServerStreamingMessage,
+        FromServerStreamingMessage, StreamingData, StreamingFields, ToServerStreamingMessage,
     },
     types::{Timestamp, VehicleDataEndpoint, VehicleId},
 };
@@ -172,7 +171,7 @@ fn deserialize_fields(
     id: VehicleId,
     str: &str,
     fields: &[StreamingFields],
-) -> Result<StreamingDataOptional, StreamingFieldError> {
+) -> Result<StreamingData, StreamingFieldError> {
     let mut split = str.split(',');
 
     let time_str = split.next();
@@ -183,7 +182,7 @@ fn deserialize_fields(
         None => return Err(StreamingFieldError::InvalidTime("<not supplied>".into())),
     };
 
-    let mut data = StreamingDataOptional::new(id, time);
+    let mut data = StreamingData::new(id, time);
 
     split
         .enumerate()
@@ -348,7 +347,7 @@ impl Client {
         &self,
         id: u64,
         fields: Vec<StreamingFields>,
-    ) -> Result<mpsc::Receiver<StreamingDataOptional>, Error> {
+    ) -> Result<mpsc::Receiver<StreamingData>, Error> {
         let (tx, rx) = mpsc::channel(10);
 
         let token = self.token.access_token.clone();

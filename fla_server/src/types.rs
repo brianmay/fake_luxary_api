@@ -2,7 +2,7 @@ use std::fmt::Formatter;
 
 use crate::simulator;
 use fla_common::{
-    streaming::StreamingDataOptional,
+    streaming::StreamingData,
     types::{
         ChargeState, ClimateState, DriveState, GranularAccess, GuiSettings, Timestamp,
         VehicleConfig, VehicleDefinition, VehicleId, VehicleState,
@@ -71,7 +71,7 @@ pub struct VehicleDataState {
     pub vehicle_state: VehicleState,
 }
 
-impl From<&VehicleDataState> for StreamingDataOptional {
+impl From<&VehicleDataState> for StreamingData {
     fn from(data: &VehicleDataState) -> Self {
         Self {
             id: data.id,

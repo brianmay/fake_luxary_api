@@ -2,7 +2,7 @@
 
 use std::sync::Arc;
 
-use fla_common::streaming::StreamingDataOptional;
+use fla_common::streaming::StreamingData;
 use tokio::sync::{broadcast, mpsc, oneshot};
 
 use crate::{errors, types::VehicleDataState};
@@ -62,12 +62,12 @@ impl CommandSender {
 }
 
 /// A handle to the simulator streaming data
-pub struct StreamReceiver(broadcast::Sender<Arc<StreamingDataOptional>>);
+pub struct StreamReceiver(broadcast::Sender<Arc<StreamingData>>);
 
 impl StreamReceiver {
     /// Subscribe to streaming data
     #[must_use]
-    pub fn subscribe(&self) -> broadcast::Receiver<Arc<StreamingDataOptional>> {
+    pub fn subscribe(&self) -> broadcast::Receiver<Arc<StreamingData>> {
         self.0.subscribe()
     }
 }
