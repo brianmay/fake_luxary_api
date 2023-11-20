@@ -322,7 +322,7 @@ pub fn start(vehicle: VehicleDefinition) -> (CommandSender, StreamReceiver) {
     let s_tx_clone = s_tx.clone();
     tokio::spawn(async move {
         // Simulated real time values.
-        let data = StreamingData {
+        let mut data = StreamingData {
             id: vehicle.id,
             time: 0,
             speed: None,
@@ -345,6 +345,7 @@ pub fn start(vehicle: VehicleDefinition) -> (CommandSender, StreamReceiver) {
                 () = sleep_until(next_instant) => {
                     // It is not an error if we are sending and nobody is listening.
                     _ = s_tx_clone.send(Arc::new(data.clone()));
+                    data.time = Utc::now().timestamp();
                     next_instant = tokio::time::Instant::now() + std::time::Duration::from_secs(1);
                 }
                 cmd = c_rx.recv() => {

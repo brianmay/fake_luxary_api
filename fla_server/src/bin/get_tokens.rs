@@ -4,6 +4,10 @@ use fla_common::auth::RawToken;
 use fla_server::tokens::{self, new_token};
 
 fn main() {
+    tracing_subscriber::fmt()
+        .with_max_level(tracing::Level::DEBUG)
+        .init();
+
     // This config must match the server.
     let config = tokens::Config {
         secret: "mom-said-yes".to_string(),

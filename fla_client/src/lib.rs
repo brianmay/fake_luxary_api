@@ -158,14 +158,14 @@ pub struct Client {
 
 #[derive(Error, Debug)]
 pub enum StreamingFieldError {
-    #[error("Invalid Time")]
-    InvalidTime,
+    #[error("Invalid Time '{0}'")]
+    InvalidTime(String),
 
-    #[error("Field {0} was not expected")]
+    #[error("Field '{0}' was not expected")]
     FieldMissingError(usize),
 
-    #[error("Error with field {0:?} number {1}")]
-    FieldError(StreamingFields, usize),
+    #[error("Error with field '{0:?}' number '{1}' value '{2}'")]
+    FieldError(StreamingFields, usize, String),
 }
 
 fn deserialize_fields(
@@ -179,8 +179,8 @@ fn deserialize_fields(
     let time = match time_str {
         Some(time_str) => time_str
             .parse::<Timestamp>()
-            .map_err(|_| StreamingFieldError::InvalidTime)?,
-        None => return Err(StreamingFieldError::InvalidTime),
+            .map_err(|_| StreamingFieldError::InvalidTime(time_str.to_string()))?,
+        None => return Err(StreamingFieldError::InvalidTime("<not supplied>".into())),
     };
 
     let mut data = StreamingDataOptional::new(id, time);
@@ -197,7 +197,7 @@ fn deserialize_fields(
                 StreamingFields::Odometer => parse_field(&mut data.odometer, value, field, n)?,
                 StreamingFields::Soc => parse_field(&mut data.soc, value, field, n)?,
                 StreamingFields::Elevation => parse_field(&mut data.elevation, value, field, n)?,
-                StreamingFields::EstHeading => parse_field(&mut data.speed, value, field, n)?,
+                StreamingFields::EstHeading => parse_field(&mut data.est_heading, value, field, n)?,
                 StreamingFields::EstLat => parse_field(&mut data.est_lat, value, field, n)?,
                 StreamingFields::EstLng => parse_field(&mut data.est_lng, value, field, n)?,
                 StreamingFields::Power => parse_field(&mut data.power, value, field, n)?,
@@ -211,7 +211,7 @@ fn deserialize_fields(
         })
         .collect::<Result<Vec<_>, StreamingFieldError>>()?;
 
-    todo!()
+    Ok(data)
 }
 
 fn parse_field<T: FromStr>(
@@ -220,10 +220,16 @@ fn parse_field<T: FromStr>(
     field: &StreamingFields,
     n: usize,
 ) -> Result<(), StreamingFieldError> {
-    *data = value
-        .parse::<T>()
-        .map_err(|_| StreamingFieldError::FieldError(*field, n))?
-        .pipe(Some);
+    let result = if value.is_empty() {
+        None
+    } else {
+        value
+            .parse::<T>()
+            .map_err(|_| StreamingFieldError::FieldError(*field, n, value.to_string()))?
+            .pipe(Some)
+    };
+
+    *data = result;
     Ok(())
 }
 
@@ -379,7 +385,7 @@ impl Client {
                                     debug!("Received: {msg:?}");
                                 }
                                 FromServerStreamingMessage::DataUpdate { tag, value } => {
-                                    println!("Received: {tag} {value}");
+                                    debug!("Got Received: {tag} {value}");
                                     match deserialize_fields(tag, &value, &fields) {
                                         Ok(data) => {
                                             tx.send(data)
