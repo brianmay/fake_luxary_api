@@ -6,7 +6,10 @@ use axum::{
     extract::{Path, State},
     Extension, Json,
 };
-use fla_common::responses::{TeslaResponse, VehicleResponse};
+use fla_common::{
+    responses::{TeslaResponse, VehicleResponse},
+    types::VehicleId,
+};
 
 use crate::{errors::ResponseError, tokens, types::Vehicle};
 
@@ -20,7 +23,7 @@ use crate::{errors::ResponseError, tokens, types::Vehicle};
 pub async fn wake_up_handler(
     State(vehicles): State<Arc<Vec<Vehicle>>>,
     Extension(config): Extension<Arc<tokens::AccessClaims>>,
-    Path(id): Path<u64>,
+    Path(id): Path<VehicleId>,
 ) -> Result<Json<VehicleResponse>, ResponseError> {
     if !config.scopes.contains(&tokens::ScopeEnum::VehicleCmds) {
         return Err(ResponseError::MissingScopes);

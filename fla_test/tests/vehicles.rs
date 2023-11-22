@@ -1,6 +1,6 @@
 #![allow(clippy::unwrap_used)]
 
-use fla_common::types::{VehicleData, VehicleDefinition};
+use fla_common::types::{VehicleData, VehicleDefinition, VehicleGuid, VehicleId};
 use fla_test::get_client;
 use restest::assert_body_matches;
 
@@ -9,11 +9,17 @@ async fn test_vehicles() {
     let client = get_client();
     let vehicles = client.get_vehicles().await.unwrap().get_response().unwrap();
 
+    assert_eq!(vehicles[0].id, VehicleId::new(123_456_789));
+    assert_eq!(vehicles[0].vehicle_id, VehicleGuid::new(999_456_789));
+
+    assert_eq!(vehicles[1].id, VehicleId::new(123_456_000));
+    assert_eq!(vehicles[1].vehicle_id, VehicleGuid::new(999_456_000));
+
     assert_body_matches!(
         vehicles,
         [
             VehicleDefinition {
-                id: 123_456_789,
+                id: _,
                 vehicle_id: _,
                 vin: _,
                 display_name: _,
@@ -29,7 +35,7 @@ async fn test_vehicles() {
                 backseat_token_updated_at: _,
             },
             VehicleDefinition {
-                id: 123_456_000,
+                id: _,
                 vehicle_id: _,
                 vin: _,
                 display_name: _,
@@ -58,10 +64,13 @@ async fn test_vehicle_1() {
         .get_response()
         .unwrap();
 
+    assert_eq!(vehicle.id, VehicleId::new(123_456_789));
+    assert_eq!(vehicle.vehicle_id, VehicleGuid::new(999_456_789));
+
     assert_body_matches!(
         vehicle,
         VehicleDefinition {
-            id: 123_456_789,
+            id: _,
             vehicle_id: _,
             vin: _,
             display_name: _,
@@ -89,10 +98,13 @@ async fn test_vehicle_2() {
         .get_response()
         .unwrap();
 
+    assert_eq!(vehicle.id, VehicleId::new(123_456_000));
+    assert_eq!(vehicle.vehicle_id, VehicleGuid::new(999_456_000));
+
     assert_body_matches!(
         vehicle,
         VehicleDefinition {
-            id: 123_456_000,
+            id: _,
             vehicle_id: _,
             vin: _,
             display_name: _,
@@ -120,10 +132,13 @@ async fn test_wakeup() {
         .get_response()
         .unwrap();
 
+    assert_eq!(vehicle.id, VehicleId::new(123_456_000));
+    assert_eq!(vehicle.vehicle_id, VehicleGuid::new(999_456_000));
+
     assert_body_matches!(
         vehicle,
         VehicleDefinition {
-            id: 123_456_000,
+            id: _,
             vehicle_id: _,
             vin: _,
             display_name: _,
@@ -157,16 +172,19 @@ async fn test_vehicle_data() {
 
     let client = get_client();
     let vehicle = client
-        .get_vehicle_data(123_456_000, &endpoints)
+        .get_vehicle_data(VehicleId::new(123_456_000), &endpoints)
         .await
         .unwrap()
         .get_response()
         .unwrap();
 
+    assert_eq!(vehicle.id, VehicleId::new(123_456_000));
+    assert_eq!(vehicle.vehicle_id, VehicleGuid::new(999_456_000));
+
     assert_body_matches!(
         vehicle,
         VehicleData {
-            id: 123_456_000,
+            id: _,
             user_id: _,
             vehicle_id: _,
             vin: _,

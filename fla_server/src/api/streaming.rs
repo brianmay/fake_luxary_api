@@ -10,8 +10,12 @@ use axum::{
     routing::get,
     Router,
 };
-use fla_common::streaming::{
-    ErrorType, FromServerStreamingMessage, StreamingData, StreamingFields, ToServerStreamingMessage,
+use fla_common::{
+    streaming::{
+        ErrorType, FromServerStreamingMessage, StreamingData, StreamingFields,
+        ToServerStreamingMessage,
+    },
+    types::VehicleGuid,
 };
 use tokio::select;
 use tracing::{debug, error};
@@ -53,7 +57,7 @@ fn serialize_fields(fields: &[StreamingFields], data: &StreamingData) -> String 
             StreamingFields::EstLat => push_data(&mut result, data.est_lat),
             StreamingFields::EstLng => push_data(&mut result, data.est_lng),
             StreamingFields::Power => push_data(&mut result, data.power),
-            StreamingFields::ShiftState => push_data(&mut result, data.shift_state),
+            StreamingFields::ShiftState => push_data(&mut result, data.shift_state.clone()),
             StreamingFields::Range => push_data(&mut result, data.range),
             StreamingFields::EstRange => push_data(&mut result, data.est_range),
             StreamingFields::Heading => push_data(&mut result, data.heading),
@@ -191,7 +195,20 @@ async fn handle_socket(
         return;
     }
 
-    let maybe_vehicle = vehicles.iter().find(|v| v.data.id == tag);
+    let Ok(vehicle_id): Result<VehicleGuid, _> = tag.parse() else {
+        error!("Invalid vehicle id!");
+        send_error(
+            &mut socket,
+            "0".to_string(),
+            ErrorType::ClientError,
+            "Invalid vehicle id".to_string(),
+        )
+        .await;
+        _ = socket.close().await;
+        return;
+    };
+
+    let maybe_vehicle = vehicles.iter().find(|v| v.data.vehicle_id == vehicle_id);
 
     let Some(vehicle) = maybe_vehicle else {
         error!("Invalid vehicle id!");
@@ -217,7 +234,7 @@ async fn handle_socket(
                         debug!("Vehicle disconnected");
                         send_error(
                             &mut socket,
-                            tag.to_string(),
+                            vehicle_id.to_string(),
                             ErrorType::VehicleDisconnected,
                             "Vehicle disconnected".to_string(),
                         )
@@ -227,7 +244,7 @@ async fn handle_socket(
                     }
                 };
                 let value = serialize_fields(&fields, &data);
-                let msg = FromServerStreamingMessage::DataUpdate { tag, value };
+                let msg = FromServerStreamingMessage::DataUpdate { tag: vehicle_id.to_string(), value };
 
                 debug!("Sending: {msg:?}");
                 if send_message(&mut socket, msg).await.is_err() {

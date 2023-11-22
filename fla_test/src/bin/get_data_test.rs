@@ -3,6 +3,7 @@
 #![allow(clippy::unwrap_used)]
 #![allow(clippy::expect_used)]
 
+use fla_common::types::VehicleStateEnum;
 use fla_server::tokens::ScopeEnum;
 use fla_test::{get_client_with_token, get_token_with_scopes};
 
@@ -32,13 +33,20 @@ async fn main() {
 
     for vehicle in vehicles.get_response().unwrap() {
         println!("vehicle: {vehicle:#?}");
+
+        if vehicle.state != VehicleStateEnum::Online {
+            println!("vehicle is not online");
+            println!();
+            continue;
+        }
+
         let vehicle_id = vehicle.id;
         let vehicle_data = client
             .get_vehicle_data(vehicle_id, &endpoints)
             .await
             .unwrap();
-
         let vehicle_data = vehicle_data.get_response().unwrap();
         println!("vehicle_data: {vehicle_data:#?}");
+        println!();
     }
 }

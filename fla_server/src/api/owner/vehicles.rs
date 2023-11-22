@@ -11,7 +11,10 @@ use tracing::error;
 use crate::{errors::ResponseError, tokens, types::Vehicle};
 use fla_common::{
     responses::{TeslaResponse, VehicleDataResponse, VehicleResponse, VehiclesResponse},
-    types::{DriveState, VehicleData, VehicleDataEndpoint, VehicleDataQuery, VehicleDefinition},
+    types::{
+        DriveState, VehicleData, VehicleDataEndpoint, VehicleDataQuery, VehicleDefinition,
+        VehicleId,
+    },
 };
 
 /// Get a list of vehicles associated with the authenticated account.
@@ -46,7 +49,7 @@ pub async fn vehicles_handler(
 pub async fn vehicle_handler(
     State(vehicles): State<Arc<Vec<Vehicle>>>,
     Extension(config): Extension<Arc<tokens::AccessClaims>>,
-    Path(id): Path<u64>,
+    Path(id): Path<VehicleId>,
 ) -> Result<Json<VehicleResponse>, ResponseError> {
     if !config
         .scopes
@@ -74,7 +77,7 @@ pub async fn vehicle_handler(
 pub async fn vehicle_data_handler(
     State(vehicles): State<Arc<Vec<Vehicle>>>,
     Extension(config): Extension<Arc<tokens::AccessClaims>>,
-    Path(id): Path<u64>,
+    Path(id): Path<VehicleId>,
     query: Query<VehicleDataQuery>,
 ) -> Result<Json<VehicleDataResponse>, ResponseError> {
     if !config

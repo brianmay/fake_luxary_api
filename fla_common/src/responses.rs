@@ -19,6 +19,11 @@ pub struct TeslaError {
     pub messages: HashMap<String, String>,
 }
 
+#[derive(Serialize, Deserialize, Debug)]
+pub struct TeslaResponseSuccess<T> {
+    pub response: T,
+}
+
 /// A response from the Tesla API
 #[derive(Serialize, Deserialize, Debug)]
 #[serde(untagged)]

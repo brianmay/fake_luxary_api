@@ -2,7 +2,7 @@ use std::str::FromStr;
 
 use serde::{Deserialize, Serialize};
 
-use crate::types::{ShiftState, Timestamp, VehicleId};
+use crate::types::{ShiftState, Timestamp, VehicleGuid};
 
 #[derive(Deserialize, Serialize, Debug)]
 pub enum ErrorType {
@@ -23,7 +23,7 @@ pub enum ToServerStreamingMessage {
     DataSubscribeOauth {
         token: String,
         value: String,
-        tag: u64,
+        tag: String,
     },
 }
 
@@ -34,7 +34,7 @@ pub enum FromServerStreamingMessage {
     ControlHello { connection_timeout: u64 },
 
     #[serde(rename = "data:update")]
-    DataUpdate { tag: u64, value: String },
+    DataUpdate { tag: String, value: String },
 
     #[serde(rename = "data:error")]
     DataError {
@@ -106,7 +106,7 @@ impl ToString for StreamingFields {
 /// Struct representing streaming data from a vehicle.
 pub struct StreamingData {
     /// The vehicle id.
-    pub id: VehicleId,
+    pub id: VehicleGuid,
 
     /// Unix timestamp in milliseconds.
     pub time: Timestamp,
@@ -115,7 +115,7 @@ pub struct StreamingData {
     pub speed: Option<u32>,
 
     /// Odometer reading in km.
-    pub odometer: Option<f64>,
+    pub odometer: Option<f32>,
 
     /// State of charge as a percentage.
     pub soc: Option<u8>,
@@ -127,10 +127,10 @@ pub struct StreamingData {
     pub est_heading: Option<u16>,
 
     /// Estimated latitude in decimal degrees.
-    pub est_lat: Option<f64>,
+    pub est_lat: Option<f32>,
 
     /// Estimated longitude in decimal degrees.
-    pub est_lng: Option<f64>,
+    pub est_lng: Option<f32>,
 
     /// Power usage in watts.
     pub power: Option<i32>,
@@ -149,7 +149,7 @@ pub struct StreamingData {
 }
 
 impl StreamingData {
-    pub fn new(id: VehicleId, time: Timestamp) -> Self {
+    pub fn new(id: VehicleGuid, time: Timestamp) -> Self {
         Self {
             id,
             time,

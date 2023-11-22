@@ -5,7 +5,7 @@ use fla_common::{
     streaming::StreamingData,
     types::{
         ChargeState, ClimateState, DriveState, GranularAccess, GuiSettings, Timestamp,
-        VehicleConfig, VehicleDefinition, VehicleId, VehicleState,
+        VehicleConfig, VehicleDefinition, VehicleGuid, VehicleId, VehicleState,
     },
 };
 use serde::Serialize;
@@ -46,11 +46,11 @@ impl std::fmt::Debug for Vehicle {
 
 /// Current state of all Vehicle Data
 #[allow(missing_docs)]
-#[derive(Default, Debug, Clone, Serialize)]
+#[derive(Debug, Clone, Serialize)]
 pub struct VehicleDataState {
     pub id: VehicleId,
     pub user_id: i64,
-    pub vehicle_id: i64,
+    pub vehicle_id: VehicleGuid,
     pub vin: String,
     pub color: Option<String>,
     pub access_type: String,
@@ -74,7 +74,7 @@ pub struct VehicleDataState {
 impl From<&VehicleDataState> for StreamingData {
     fn from(data: &VehicleDataState) -> Self {
         Self {
-            id: data.id,
+            id: data.vehicle_id,
             time: data.drive_state.timestamp,
             speed: data.drive_state.speed,
             odometer: Some(data.vehicle_state.odometer),
@@ -85,7 +85,7 @@ impl From<&VehicleDataState> for StreamingData {
             est_lat: data.drive_state.latitude,
             est_lng: data.drive_state.longitude,
             power: data.drive_state.power,
-            shift_state: data.drive_state.shift_state,
+            shift_state: data.drive_state.shift_state.clone(),
             range: Some(data.charge_state.battery_range),
             est_range: Some(data.charge_state.est_battery_range),
             heading: Some(data.drive_state.heading),
