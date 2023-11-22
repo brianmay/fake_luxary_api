@@ -95,11 +95,11 @@ pub async fn vehicle_data_handler(
         .endpoints
         .as_ref()
         .map(|e| {
-            e.split(',')
+            e.split(';')
                 .map(VehicleDataEndpoint::from_str)
                 .collect::<Result<HashSet<_>, _>>()
                 .map_err(|err| {
-                    error!("xxxx not valid: {err:?}");
+                    error!("endpoints not valid: {err:?}");
                     err
                 })
         })

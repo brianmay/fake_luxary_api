@@ -28,7 +28,7 @@ pub struct VehicleDefinition {
     pub display_name: String,
 
     /// Vehicle option codes.
-    pub option_codes: String,
+    pub option_codes: Option<String>,
 
     /// Vehicle color.
     pub color: Option<String>,

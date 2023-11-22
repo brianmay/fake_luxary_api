@@ -95,6 +95,21 @@ async fn handle_socket(
     // connections.
     let msg = match socket.recv().await {
         Some(Ok(Message::Text(text))) => text,
+        Some(Ok(Message::Binary(binary))) => match String::from_utf8(binary) {
+            Ok(text) => text,
+            Err(err) => {
+                error!("Could parse ut8 in message: {err}");
+                send_error(
+                    &mut socket,
+                    "0".to_string(),
+                    ErrorType::ClientError,
+                    "Could not parse message".to_string(),
+                )
+                .await;
+                _ = socket.close().await;
+                return;
+            }
+        },
         Some(Ok(msg)) => {
             error!("Unexpected message: {msg:?}");
             send_error(
@@ -248,7 +263,8 @@ async fn send_message(
         return Err(());
     };
 
-    if socket.send(Message::Text(text)).await.is_ok() {
+    let binary = String::as_bytes(&text).to_vec();
+    if socket.send(Message::Binary(binary)).await.is_ok() {
         Ok(())
     } else {
         error!("Could not send a message!");

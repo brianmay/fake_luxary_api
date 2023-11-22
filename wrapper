@@ -1,0 +1,9 @@
+#!/bin/sh
+
+export TESLA_ACCESS_TOKEN="$(pass show tesla/access_token)"
+export TESLA_REFRESH_TOKEN="$(pass show tesla/refresh_token)"
+export TESLA_AUTH_API="https://auth.tesla.com/oauth2/"
+export TESLA_OWNER_API="https://owner-api.teslamotors.com/"
+export TESLA_STREAMING_API="wss://streaming.vn.teslamotors.com/streaming/"
+
+"$@"

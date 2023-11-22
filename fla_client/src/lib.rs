@@ -11,7 +11,7 @@ use fla_common::{
 };
 use futures_util::{SinkExt, StreamExt};
 use http::StatusCode;
-use tap::Pipe;
+use tap::{Pipe, Tap};
 use thiserror::Error;
 use tokio::{select, sync::mpsc};
 use tokio_tungstenite::{
@@ -130,7 +130,7 @@ impl Config<HasToken> {
         Client {
             auth_url: self
                 .auth_url
-                .unwrap_or_else(|| "https://auth.tesla.com/oauth2/v3/token".into())
+                .unwrap_or_else(|| "https://auth.tesla.com/".into())
                 .pipe(|x| Url::parse(&x))?,
             owner_url: self
                 .owner_url
@@ -271,15 +271,23 @@ impl Client {
 
     pub async fn get_vehicles(&self) -> Result<VehiclesResponse, reqwest::Error> {
         let url = format!("{}api/1/vehicles", self.owner_url);
-        let vehicles = reqwest::Client::new()
+        let text = reqwest::Client::new()
             .get(url)
             .header("Content-Type", "application/json")
             .bearer_auth(&self.token.access_token)
             .send()
             .await?
             .error_for_status()?
-            .json::<VehiclesResponse>()
+            .text()
             .await?;
+
+        let jd = &mut serde_json::Deserializer::from_str(&text);
+        let result: Result<VehiclesResponse, _> = serde_path_to_error::deserialize(jd);
+        let vehicles = result
+            .map_err(|err| {
+                panic!("Error deserializing vehicle: {}", err);
+            })
+            .unwrap();
 
         Ok(vehicles)
     }
@@ -302,13 +310,13 @@ impl Client {
     pub async fn get_vehicle_data(
         &self,
         id: u64,
-        endpoints: HashSet<VehicleDataEndpoint>,
+        endpoints: &HashSet<VehicleDataEndpoint>,
     ) -> Result<VehicleDataResponse, reqwest::Error> {
         let endpoints = endpoints
-            .into_iter()
+            .iter()
             .map(|x| x.to_string())
             .collect::<Vec<_>>()
-            .join(",");
+            .join(";");
 
         let query = [("endpoints", endpoints)];
 
@@ -318,6 +326,7 @@ impl Client {
             .query(&query)
             .header("Content-Type", "application/json")
             .bearer_auth(&self.token.access_token)
+            // .tap(|x| println!("Request: {:#?}", x))
             .send()
             .await?
             .error_for_status()?
@@ -376,49 +385,38 @@ impl Client {
                   maybe_msg = socket.next()  => {
                     match maybe_msg {
                         Some(Ok(Message::Text(msg))) => {
-                            let msg: FromServerStreamingMessage = serde_json::from_str(&msg).unwrap();
+                            msg
+                            .tap(|x| debug!("Received text message: {:#?}", x))
+                            .pipe(|msg| process_message(msg, &fields, &tx)).await;
+                        }
+                        Some(Ok(Message::Binary(msg))) => {
+                            let msg = String::from_utf8(msg);
                             match msg {
-                                FromServerStreamingMessage::ControlHello {
-                                    connection_timeout: _,
-                                } => {
-                                    debug!("Received: {msg:?}");
+                                Ok(msg) => {
+                                    debug!("Received binary: {msg:?}");
+                                    process_message(msg, &fields, &tx).await;
                                 }
-                                FromServerStreamingMessage::DataUpdate { tag, value } => {
-                                    debug!("Got Received: {tag} {value}");
-                                    match deserialize_fields(tag, &value, &fields) {
-                                        Ok(data) => {
-                                            tx.send(data)
-                                                .await
-                                                .unwrap_or_else(|err| error!("Error sending data: {err}"));
-                                        }
-                                        Err(err) => {
-                                            error!("Error deserializing data: {err}");
-                                        }
-                                    }
-                                }
-                                FromServerStreamingMessage::DataError {
-                                    tag,
-                                    error_type,
-                                    value,
-                                } => {
-                                    error!("Received data error: {tag} {error_type:?} {value}");
+                                Err(err) => {
+                                    error!("Error decoding message: {err}");
+                                    break;
                                 }
                             }
                         }
                         Some(Ok(msg)) => {
-                            println!("Received unexpected: {msg:?}");
+                            debug!("Received unexpected: {msg:?}");
                         }
                         Some(Err(e)) => {
-                            println!("Error: {e:?}");
+                            error!("Error: {e:?}");
+                            break;
                         }
                         None => {
-                            println!("Disconnected");
+                            debug!("Disconnected");
                             break;
                         }
                     }
                   }
                   _ = tx.closed() => {
-                    println!("Client disconnected");
+                    debug!("Client disconnected");
                     break;
                   }
                 }
@@ -439,5 +437,39 @@ impl Client {
     /// Get the token (for testing)
     pub fn token(&self) -> &Token {
         &self.token
+    }
+}
+
+async fn process_message(
+    msg: String,
+    fields: &[StreamingFields],
+    tx: &mpsc::Sender<StreamingData>,
+) {
+    let msg: FromServerStreamingMessage = serde_json::from_str(&msg).unwrap();
+    match msg {
+        FromServerStreamingMessage::ControlHello {
+            connection_timeout: _,
+        } => {
+            debug!("Received: {msg:?}");
+        }
+        FromServerStreamingMessage::DataUpdate { tag, value } => {
+            match deserialize_fields(tag, &value, fields) {
+                Ok(data) => {
+                    tx.send(data)
+                        .await
+                        .unwrap_or_else(|err| error!("Error sending data: {err}"));
+                }
+                Err(err) => {
+                    error!("Error deserializing data: {err}");
+                }
+            }
+        }
+        FromServerStreamingMessage::DataError {
+            tag,
+            error_type,
+            value,
+        } => {
+            error!("Received data error: {tag} {error_type:?} {value}");
+        }
     }
 }

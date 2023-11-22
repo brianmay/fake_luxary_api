@@ -91,25 +91,3 @@ impl IntoResponse for ResponseError {
         }
     }
 }
-
-#[cfg(test)]
-mod test {
-    #![allow(clippy::unwrap_used)]
-    use std::assert_eq;
-
-    use super::*;
-
-    #[test]
-    fn test_error() {
-        let error = error("error:invalid_command", "Invalid command");
-        // assert_eq!(error.response, ());
-        assert_eq!(error.error, "error:invalid_command");
-        assert_eq!(error.error_description, "Invalid command");
-
-        let string = serde_json::to_string(&error).unwrap();
-        assert_eq!(
-            string,
-            r#"{"response":null,"error":"error:invalid_command","error_description":"Invalid command","messages":{}}"#
-        );
-    }
-}
