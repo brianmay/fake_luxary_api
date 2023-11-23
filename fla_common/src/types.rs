@@ -131,8 +131,14 @@ pub struct VehicleDefinition {
 /// Enum representing a vehicle's shift state.
 #[derive(Debug, Clone, Eq, PartialEq)]
 pub enum ShiftState {
+    // Park state
+    Park,
+
     // Drive state
     Drive,
+
+    // Reverse state
+    Reverse,
 
     /// Unknown shift state
     Unknown(String),
@@ -156,7 +162,9 @@ impl FromStr for ShiftState {
 
     fn from_str(s: &str) -> Result<Self, Self::Err> {
         match s {
+            "P" => Ok(Self::Park),
             "D" => Ok(Self::Drive),
+            "R" => Ok(Self::Reverse),
             _ => Ok(Self::Unknown(s.to_string())),
         }
     }
@@ -166,7 +174,9 @@ impl FromStr for ShiftState {
 impl ToString for ShiftState {
     fn to_string(&self) -> String {
         match self {
+            Self::Park => "P",
             Self::Drive => "D",
+            Self::Reverse => "R",
             Self::Unknown(s) => s,
         }
         .to_string()
