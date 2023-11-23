@@ -37,6 +37,6 @@ Get data from real Tesla server:
 ```
 pass insert tesla/access_token
 pass insert tesla/refresh_token
-cargo run --bin get_data_test
-cargo run --bin streaming_test <vehicle_id>
+./wrapper cargo run --bin get_data_test
+./wrapper cargo run --bin streaming_test <vehicle_id>
 ```
