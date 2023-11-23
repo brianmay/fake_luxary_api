@@ -25,7 +25,7 @@ Get data from the simulator:
 
 ```
 cargo run --bin get_data_test
-cargo run --bin streaming_test
+cargo run --bin streaming_test 999456789
 ```
 
 Get data from real Tesla server:
