@@ -1,4 +1,4 @@
-# Fake Luxury SPI
+# Fake Luxury API
 
 Tesla API client and simulator.
 
