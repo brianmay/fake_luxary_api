@@ -229,7 +229,7 @@ pub struct ChargeState {
     pub charge_port_latch: String,
     pub charge_rate: Option<f32>,
     pub charger_actual_current: i64,
-    pub charger_phases: Option<String>,
+    pub charger_phases: Option<u8>,
     pub charger_pilot_current: i64,
     pub charger_power: i64,
     pub charger_voltage: i64,
