@@ -7,7 +7,8 @@ use tower_http::trace::TraceLayer;
 use fla_server::Config;
 use fla_server::{
     api::{auth, owner, streaming},
-    data, tokens,
+    simulator::data,
+    tokens,
 };
 
 #[tokio::main]

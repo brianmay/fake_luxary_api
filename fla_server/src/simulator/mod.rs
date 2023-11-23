@@ -1,4 +1,5 @@
 //! Simulate a car
+pub mod data;
 
 use std::sync::Arc;
 

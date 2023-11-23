@@ -5,7 +5,6 @@ use std::sync::Arc;
 use axum::extract::FromRef;
 
 pub mod api;
-pub mod data;
 pub mod errors;
 pub mod middleware;
 pub mod simulator;
