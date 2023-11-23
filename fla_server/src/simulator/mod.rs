@@ -3,7 +3,7 @@ pub mod data;
 
 use std::sync::Arc;
 
-use fla_common::streaming::StreamingData;
+use fla_common::streaming::{DataError, StreamingData};
 use tokio::sync::{broadcast, mpsc, oneshot};
 
 use crate::{errors, types::VehicleDataState};
@@ -11,10 +11,12 @@ pub mod server;
 
 type WakeUpResponse = Result<(), errors::ResponseError>;
 type VehicleDataResponse = Result<VehicleDataState, errors::ResponseError>;
+type SubscribeResponse = Result<broadcast::Receiver<Arc<StreamingData>>, DataError>;
 
 enum Command {
     WakeUp(oneshot::Sender<WakeUpResponse>),
-    GetVehicleData(oneshot::Sender<VehicleDataState>),
+    GetVehicleData(oneshot::Sender<VehicleDataResponse>),
+    Subscribe(oneshot::Sender<SubscribeResponse>),
 }
 
 /// A handle to the simulator
@@ -58,17 +60,25 @@ impl CommandSender {
         tokio::time::timeout(TIMEOUT, rx)
             .await
             .map_err(|_| errors::ResponseError::DeviceNotAvailable)?
-            .map_err(|_| errors::ResponseError::DeviceNotAvailable)
+            .map_err(|_| errors::ResponseError::DeviceNotAvailable)?
     }
-}
 
-/// A handle to the simulator streaming data
-pub struct StreamReceiver(broadcast::Sender<Arc<StreamingData>>);
+    /// Subscribe to vehicle data
+    ///
+    /// # Errors
+    ///
+    /// If the simulator is dead, an error will be returned.
+    /// If the request times out, an error will be returned.
+    pub async fn subscribe(&self) -> SubscribeResponse {
+        let (tx, rx) = oneshot::channel();
+        self.0
+            .send(Command::Subscribe(tx))
+            .await
+            .map_err(|_| DataError::disconnected())?;
 
-impl StreamReceiver {
-    /// Subscribe to streaming data
-    #[must_use]
-    pub fn subscribe(&self) -> broadcast::Receiver<Arc<StreamingData>> {
-        self.0.subscribe()
+        tokio::time::timeout(TIMEOUT, rx)
+            .await
+            .map_err(|_| DataError::disconnected())?
+            .map_err(|_| DataError::disconnected())?
     }
 }

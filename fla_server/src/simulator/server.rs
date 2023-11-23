@@ -20,7 +20,7 @@ use tracing::debug;
 
 use crate::types::VehicleDataState;
 
-use super::{Command, CommandSender, StreamReceiver};
+use super::{Command, CommandSender};
 
 #[allow(clippy::too_many_lines)]
 fn get_vehicle_data(vehicle: &VehicleDefinition, now: DateTime<Utc>) -> VehicleDataState {
@@ -318,7 +318,7 @@ fn get_vehicle_data(vehicle: &VehicleDefinition, now: DateTime<Utc>) -> VehicleD
 /// Start the simulator
 #[must_use]
 #[allow(clippy::needless_pass_by_value)]
-pub fn start(vehicle: VehicleDefinition) -> (CommandSender, StreamReceiver) {
+pub fn start(vehicle: VehicleDefinition) -> CommandSender {
     let (c_tx, mut c_rx) = mpsc::channel(1);
     let (s_tx, _s_rx) = broadcast::channel(1);
 
@@ -351,7 +351,11 @@ pub fn start(vehicle: VehicleDefinition) -> (CommandSender, StreamReceiver) {
                             let _ = tx.send(rc);
                         }
                         Some(Command::GetVehicleData(tx)) => {
-                            let _ = tx.send(data.clone());
+                            let _ = tx.send(Ok(data.clone()));
+                        }
+                        Some(Command::Subscribe(tx)) => {
+                            let subscription = s_tx_clone.subscribe();
+                            let _ = tx.send(Ok(subscription));
                         }
                         None => {
                             debug!("Command channel closed, exiting simulator");
@@ -363,5 +367,5 @@ pub fn start(vehicle: VehicleDefinition) -> (CommandSender, StreamReceiver) {
         }
     });
 
-    (CommandSender(c_tx), StreamReceiver(s_tx))
+    CommandSender(c_tx)
 }

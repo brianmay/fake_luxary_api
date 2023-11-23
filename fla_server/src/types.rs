@@ -17,21 +17,14 @@ pub struct Vehicle {
 
     /// The command sender
     pub command: simulator::CommandSender,
-
-    /// The stream receiver
-    pub stream: simulator::StreamReceiver,
 }
 
 impl Vehicle {
     /// Create a new vehicle
     #[must_use]
     pub fn new(data: VehicleDefinition) -> Self {
-        let (command, stream) = simulator::server::start(data.clone());
-        Self {
-            data,
-            command,
-            stream,
-        }
+        let command = simulator::server::start(data.clone());
+        Self { data, command }
     }
 }
 impl std::fmt::Debug for Vehicle {

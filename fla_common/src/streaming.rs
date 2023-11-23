@@ -1,6 +1,7 @@
 use std::str::FromStr;
 
 use serde::{Deserialize, Serialize};
+use thiserror::Error;
 
 use crate::types::{ShiftState, Timestamp, VehicleGuid};
 
@@ -14,6 +15,37 @@ pub enum ErrorType {
 
     #[serde(rename = "client_error")]
     ClientError,
+}
+
+#[derive(Deserialize, Serialize, Debug, Error)]
+pub struct DataError {
+    pub tag: String,
+    pub error_type: ErrorType,
+    pub value: String,
+}
+
+impl DataError {
+    pub fn new(tag: impl Into<String>, error_type: ErrorType, value: impl Into<String>) -> Self {
+        Self {
+            tag: tag.into(),
+            error_type,
+            value: value.into(),
+        }
+    }
+
+    pub fn disconnected() -> Self {
+        Self::new("vehicle", ErrorType::VehicleDisconnected, "disconnected")
+    }
+}
+
+impl std::fmt::Display for DataError {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(
+            f,
+            "DataError {{ tag: {}, error_type: {:?}, value: {} }}",
+            self.tag, self.error_type, self.value
+        )
+    }
 }
 
 #[derive(Deserialize, Serialize, Debug)]
@@ -37,11 +69,7 @@ pub enum FromServerStreamingMessage {
     DataUpdate { tag: String, value: String },
 
     #[serde(rename = "data:error")]
-    DataError {
-        tag: String,
-        error_type: ErrorType,
-        value: String,
-    },
+    DataError(DataError),
 }
 
 #[derive(Copy, Clone, Debug)]

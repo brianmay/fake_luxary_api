@@ -7,7 +7,8 @@ use fla_common::{
         TeslaResponse, TeslaResponseSuccess, VehicleDataResponse, VehicleResponse, VehiclesResponse,
     },
     streaming::{
-        FromServerStreamingMessage, StreamingData, StreamingFields, ToServerStreamingMessage,
+        DataError, FromServerStreamingMessage, StreamingData, StreamingFields,
+        ToServerStreamingMessage,
     },
     types::{Timestamp, VehicleData, VehicleDataEndpoint, VehicleGuid, VehicleId},
 };
@@ -496,11 +497,12 @@ async fn process_message(
                 }
             }
         }
-        FromServerStreamingMessage::DataError {
-            tag,
-            error_type,
-            value,
-        } => {
+        FromServerStreamingMessage::DataError(data_error) => {
+            let DataError {
+                tag,
+                error_type,
+                value,
+            } = data_error;
             error!("Received data error: {tag} {error_type:?} {value}");
             match error_type {
                 fla_common::streaming::ErrorType::VehicleDisconnected => {

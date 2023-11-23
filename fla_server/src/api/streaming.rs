@@ -12,11 +12,12 @@ use axum::{
 };
 use fla_common::{
     streaming::{
-        ErrorType, FromServerStreamingMessage, StreamingData, StreamingFields,
+        DataError, ErrorType, FromServerStreamingMessage, StreamingData, StreamingFields,
         ToServerStreamingMessage,
     },
     types::VehicleGuid,
 };
+use thiserror::Error;
 use tokio::select;
 use tracing::{debug, error};
 
@@ -86,172 +87,146 @@ pub async fn ws_handler(
     ws.on_upgrade(|socket| handle_socket(socket, config, vehicles))
 }
 
+#[derive(Error, Debug)]
+enum SocketError {
+    #[error("{0}")]
+    ReportableError(#[from] DataError),
+
+    #[error("{0}")]
+    NotReportableError(String),
+}
+
 /// Actual websocket state machine (one will be spawned per connection)
-#[allow(clippy::too_many_lines)]
 async fn handle_socket(
     mut socket: WebSocket,
     config: Arc<tokens::Config>,
     vehicles: Arc<Vec<Vehicle>>,
 ) {
-    // receive single message from a client (we can either receive or send with socket).
-    // this will likely be the Pong for our Ping or a hello message from client.
-    // waiting for message from a client will block this task, but will not block other client's
-    // connections.
+    match handle_socket_internal(&mut socket, config, vehicles).await {
+        Err(SocketError::ReportableError(err)) => {
+            error!("Reportable error: {err}");
+            send_error(&mut socket, err).await;
+            _ = socket.close().await;
+        }
+
+        Err(SocketError::NotReportableError(err)) => {
+            error!("Not reportable error: {err}");
+            _ = socket.close().await;
+        }
+
+        Ok(()) => {
+            _ = socket.close().await;
+        }
+    }
+}
+
+async fn handle_socket_internal(
+    socket: &mut WebSocket,
+    config: Arc<tokens::Config>,
+    vehicles: Arc<Vec<Vehicle>>,
+) -> Result<(), SocketError> {
+    // Receive the subscription message.
     let msg = match socket.recv().await {
         Some(Ok(Message::Text(text))) => text,
         Some(Ok(Message::Binary(binary))) => match String::from_utf8(binary) {
             Ok(text) => text,
             Err(err) => {
-                error!("Could parse ut8 in message: {err}");
-                send_error(
-                    &mut socket,
-                    "0".to_string(),
-                    ErrorType::ClientError,
-                    "Could not parse message".to_string(),
-                )
-                .await;
-                _ = socket.close().await;
-                return;
+                let error = format!("Could not parse message: {err}");
+                return Err(SocketError::NotReportableError(error));
             }
         },
         Some(Ok(msg)) => {
-            error!("Unexpected message: {msg:?}");
-            send_error(
-                &mut socket,
-                "0".to_string(),
-                ErrorType::ClientError,
-                "Unexpected message".to_string(),
-            )
-            .await;
-            _ = socket.close().await;
-            return;
+            let error = format!("Unexpected message: {msg:?}");
+            return Err(SocketError::NotReportableError(error));
         }
         Some(Err(_)) | None => {
-            error!("client abruptly disconnected");
-            _ = socket.close().await;
-            return;
+            let error = "Connection closed waiting for subscription".to_string();
+            return Err(SocketError::NotReportableError(error));
         }
     };
 
-    let Ok(msg) = serde_json::from_str::<ToServerStreamingMessage>(&msg) else {
-        error!("Could not parse message!");
-        send_error(
-            &mut socket,
-            "0".to_string(),
-            ErrorType::ClientError,
-            "Could not parse message".to_string(),
-        )
-        .await;
-        _ = socket.close().await;
-        return;
-    };
+    // Parse the subscription message.
+    let msg = serde_json::from_str::<ToServerStreamingMessage>(&msg).map_err(|err| {
+        error!("Could not parse subscription message: {err}");
+        let error = "Could not parse subscription message".to_string();
+        SocketError::NotReportableError(error)
+    })?;
 
+    // Extract the values from the subscription message.
     let (token, value, tag) = match msg {
         ToServerStreamingMessage::DataSubscribeOauth { token, value, tag } => (token, value, tag),
     };
 
-    // tag is the vehicle_id
-
+    // Deserialize the incoming data
     let fields = deserialize_field_names(&value);
 
-    let Ok(claims) = validate_access_token(&token, &config) else {
-        error!("Invalid token!");
-        send_error(
-            &mut socket,
-            "0".to_string(),
-            ErrorType::ClientError,
-            "Invalid token".to_string(),
-        )
-        .await;
-        _ = socket.close().await;
-        return;
-    };
+    // Validate the token
+    let claims = validate_access_token(&token, &config).map_err(|err| {
+        error!("Invalid token: {err}");
+        let error = DataError::new(&tag, ErrorType::ClientError, "Invalid token");
+        SocketError::ReportableError(error)
+    })?;
 
+    // Validate the claims
     if !claims
         .scopes
         .contains(&tokens::ScopeEnum::VehicleDeviceData)
     {
-        error!("Invalid scope!");
-        send_error(
-            &mut socket,
-            "0".to_string(),
-            ErrorType::ClientError,
-            "Invalid scope".to_string(),
-        )
-        .await;
-        _ = socket.close().await;
-        return;
+        let error = DataError::new(&tag, ErrorType::ClientError, "Invalid scope");
+        return Err(SocketError::ReportableError(error));
     }
 
-    // send a message to a client (we can either receive or send with socket).
-    // this will likely be the Pong for our Ping or a hello message from client.
-    // waiting for message from a client will block this task, but will not block other client's
-    // connections.
+    // Say hello to the client. Pretend to be polite. The client will never guess the truth.
     let hello = FromServerStreamingMessage::ControlHello {
         connection_timeout: 30000,
     };
-    if send_message(&mut socket, hello).await.is_err() {
-        _ = socket.close().await;
-        return;
-    }
+    send_message(socket, hello).await.map_err(|err| {
+        error!("Could not send hello: {err:?}");
+        let error = DataError::new(&tag, ErrorType::ClientError, "Could not send hello");
+        SocketError::ReportableError(error)
+    })?;
 
-    let Ok(vehicle_id): Result<VehicleGuid, _> = tag.parse() else {
-        error!("Invalid vehicle id!");
-        send_error(
-            &mut socket,
-            "0".to_string(),
-            ErrorType::ClientError,
-            "Invalid vehicle id".to_string(),
-        )
-        .await;
-        _ = socket.close().await;
-        return;
-    };
-
+    // The vehicle_id is the tag
+    let vehicle_id: VehicleGuid = tag.clone().parse().map_err(|err| {
+        error!("Vehicle id is not an integer: {err}");
+        let error = DataError::new(&tag, ErrorType::ClientError, "Invalid vehicle id");
+        SocketError::ReportableError(error)
+    })?;
     let maybe_vehicle = vehicles.iter().find(|v| v.data.vehicle_id == vehicle_id);
-
     let Some(vehicle) = maybe_vehicle else {
-        error!("Invalid vehicle id!");
-        send_error(
-            &mut socket,
-            "0".to_string(),
-            ErrorType::ClientError,
-            "Invalid vehicle id".to_string(),
-        )
-        .await;
-        _ = socket.close().await;
-        return;
+        error!("Vehicle id not found: {vehicle_id:?}");
+        let error = DataError::new(&tag, ErrorType::ClientError, "Invalid vehicle id");
+        return Err(SocketError::ReportableError(error));
     };
+    let mut rx = vehicle.command.subscribe().await?;
 
-    let mut rx = vehicle.stream.subscribe();
-
+    // Wait for data, either from simulator or from client.
     loop {
         select! {
+            // We got Data from the simulator.
             data = rx.recv() => {
                 let data = match data {
                     Ok(data) => data,
                     Err(_err) => {
-                        debug!("Vehicle disconnected");
-                        send_error(
-                            &mut socket,
-                            vehicle_id.to_string(),
-                            ErrorType::VehicleDisconnected,
-                            "Vehicle disconnected".to_string(),
-                        )
-                        .await;
-                        _ = socket.close().await;
-                        return;
+                        let error = DataError::disconnected();
+                        return Err(SocketError::ReportableError(error));
                     }
                 };
                 let value = serialize_fields(&fields, &data);
                 let msg = FromServerStreamingMessage::DataUpdate { tag: vehicle_id.to_string(), value };
 
                 debug!("Sending: {msg:?}");
-                if send_message(&mut socket, msg).await.is_err() {
-                    _ = socket.close().await;
-                    return;
-                }
+                send_message(socket, msg).await.map_err(|err| {
+                    let error = format!("Could not send message: {err:?}");
+                    // If we could not send the message, the client is probably gone.
+                    // We should probably make funeral arrangements.
+                    // But no point trying to tell the client about it.
+                    SocketError::NotReportableError(error)
+                })?
             }
+            // We got a message from the client.
+            // We don't expect any messages from the client.
+            // The client still thinks we are friends.
             msg = socket.recv() => {
                 match msg {
                     Some(Ok(msg)) => {
@@ -269,6 +244,8 @@ async fn handle_socket(
             }
         }
     }
+
+    Ok(())
 }
 
 async fn send_message(
@@ -289,11 +266,7 @@ async fn send_message(
     }
 }
 
-async fn send_error(socket: &mut WebSocket, tag: String, error_type: ErrorType, value: String) {
-    let msg = FromServerStreamingMessage::DataError {
-        tag,
-        error_type,
-        value,
-    };
+async fn send_error(socket: &mut WebSocket, error: DataError) {
+    let msg = FromServerStreamingMessage::DataError(error);
     _ = send_message(socket, msg).await;
 }
