@@ -84,7 +84,7 @@ fn get_vehicle_data(vehicle: &VehicleDefinition, now: DateTime<Utc>) -> VehicleD
             charger_voltage: 2,
             charging_state: ChargingStateEnum::Disconnected,
             conn_charge_cable: "<invalid>".to_string(),
-            est_battery_range: 143.88,
+            est_battery_range: range,
             fast_charger_brand: "<invalid>".to_string(),
             fast_charger_present: false,
             fast_charger_type: "<invalid>".to_string(),
@@ -347,9 +347,10 @@ pub fn start(vehicle: VehicleDefinition) -> CommandSender {
             let new_ss = select! {
                 Some(state) = maybe_update_drive(&ss) => {
                     debug!("Car {:?} is driving", data.id);
-                    let (drive_state, elevation, ss) = get_updated_drive_state(&data, &ss, state);
+                    let (drive_state, elevation, charge_state, ss) = get_updated_drive_state(&data, &ss, state);
                     data.drive_state = drive_state;
                     data.elevation = elevation;
+                    data.charge_state = charge_state;
                     let streaming_data: StreamingData = (&data).into();
 
                     if let Some(s_tx) = &maybe_s_tx {
@@ -527,7 +528,7 @@ fn get_updated_drive_state(
     data: &VehicleDataState,
     ss: &SimulationState,
     state: &SimulationDriveState,
-) -> (DriveState, u32, SimulationState) {
+) -> (DriveState, u32, ChargeState, SimulationState) {
     let now = Utc::now();
     let duration = Instant::now().duration_since(state.time).as_secs_f64();
     let heading = f64::from(state.heading);
@@ -536,15 +537,18 @@ fn get_updated_drive_state(
     // convert speed from mph to km per second
     let speed = speed * 1.609_344 / 3600.0;
 
-    debug!("state: {state:?} {}", duration);
     let proj = FlatProjection::new(state.longitude, state.latitude);
     let mut point = proj.project(state.longitude, state.latitude);
-    debug!("point: {point:?}");
-    point.x += duration * speed * heading.to_radians().sin();
-    point.y += duration * speed * heading.to_radians().cos();
-    debug!("point: {point:?}");
+    let distance = duration * speed;
+    point.x += distance * heading.to_radians().sin();
+    point.y += distance * heading.to_radians().cos();
     let (latitude, longitude) = proj.unproject(&point);
-    debug!("latitude: {latitude:?}, longitude: {longitude:?}");
+
+    let battery_level = f64::from(state.battery_level) - distance;
+    let finished_driving = battery_level <= 0.0;
+    let battery_level = battery_level.min(100.0).max(0.0) as u8;
+
+    debug!("driving, latitude: {latitude:?}, longitude: {longitude:?}, distance: {distance}, battery: {battery_level}, finished driving: {finished_driving}");
 
     let drive_state = DriveState {
         active_route_latitude: latitude,
@@ -560,16 +564,32 @@ fn get_updated_drive_state(
         native_type: "wgs".to_string(),
         power: Some(0),
         shift_state: None,
-        speed: Some(state.speed),
+        speed: if finished_driving {
+            Some(0.0)
+        } else {
+            Some(state.speed)
+        },
         timestamp: now.timestamp(),
     };
+
+    let mut charge_state = data.charge_state.clone();
+    charge_state.charging_state = ChargingStateEnum::Disconnected;
+    charge_state.battery_level = battery_level;
+    charge_state.battery_range = f32::from(charge_state.battery_level * 2);
+    charge_state.ideal_battery_range = charge_state.battery_range;
+    charge_state.est_battery_range = charge_state.battery_range;
 
     let elevation = 0;
 
     (
         drive_state,
         elevation,
-        ss.clone().drive(data, Instant::now()),
+        charge_state,
+        if finished_driving {
+            SimulationState::idle(Instant::now())
+        } else {
+            ss.clone().drive(data, Instant::now())
+        },
     )
 }
 
@@ -595,7 +615,7 @@ fn get_updated_charge_state(
 
     let range = f32::from(battery_level * 2);
     debug!(
-        "charging, battery_level: {battery_level}, {range}, {:?}, {finished_charging}",
+        "charging, battery level: {battery_level}, time to full charge: {:?}, finished charging: {finished_charging}",
         time_to_full_charge.map(|x| x * 60.0)
     );
 
@@ -624,9 +644,13 @@ fn get_updated_charge_state(
         charger_pilot_current: 48,
         charger_power: 0,
         charger_voltage: 2,
-        charging_state: ChargingStateEnum::Charging,
+        charging_state: if finished_charging {
+            ChargingStateEnum::Complete
+        } else {
+            ChargingStateEnum::Charging
+        },
         conn_charge_cable: "<invalid>".to_string(),
-        est_battery_range: 143.88,
+        est_battery_range: range,
         fast_charger_brand: "<invalid>".to_string(),
         fast_charger_present: false,
         fast_charger_type: "<invalid>".to_string(),

@@ -15,6 +15,7 @@ pub struct SimulationDriveState {
     pub longitude: f64,
     pub heading: u16,
     pub speed: f32,
+    pub battery_level: u8,
 }
 
 impl From<&VehicleDataState> for SimulationDriveState {
@@ -25,6 +26,7 @@ impl From<&VehicleDataState> for SimulationDriveState {
             longitude: data.drive_state.longitude.unwrap_or(0.0),
             heading: data.drive_state.heading,
             speed: 60.0,
+            battery_level: data.charge_state.battery_level,
         }
     }
 }
