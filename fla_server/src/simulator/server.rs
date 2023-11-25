@@ -351,6 +351,7 @@ pub fn start(vehicle: VehicleDefinition) -> CommandSender {
                     data.drive_state = drive_state;
                     data.elevation = elevation;
                     data.charge_state = charge_state;
+
                     let streaming_data: StreamingData = (&data).into();
 
                     if let Some(s_tx) = &maybe_s_tx {
@@ -472,6 +473,20 @@ pub fn start(vehicle: VehicleDefinition) -> CommandSender {
             }
 
             if old_sse != new_sse {
+                match (old_sse, new_sse) {
+                    (SimulationStateEnum::Driving, _) => {
+                        data.drive_state.speed = None;
+                        data.drive_state.shift_state = None;
+                        data.drive_state.power = None;
+                    }
+                    (SimulationStateEnum::Charging, _) => {
+                        data.charge_state.charging_state = ChargingStateEnum::Disconnected;
+                        data.charge_state.charge_amps = 0;
+                    }
+                    (SimulationStateEnum::Idle, _) => {}
+                    (SimulationStateEnum::IdleNoSleep, _) => {}
+                    (SimulationStateEnum::Sleeping, _) => {}
+                }
                 debug!(
                     "Car {:?} changed state from {:?} to {:?}",
                     data.id, old_sse, new_sse
@@ -562,7 +577,7 @@ fn get_updated_drive_state(
         native_location_supported: 1,
         native_longitude: None,
         native_type: "wgs".to_string(),
-        power: Some(0),
+        power: Some(500),
         shift_state: if finished_driving {
             None
         } else {
@@ -577,7 +592,6 @@ fn get_updated_drive_state(
     };
 
     let mut charge_state = data.charge_state.clone();
-    charge_state.charging_state = ChargingStateEnum::Disconnected;
     charge_state.battery_level = battery_level;
     charge_state.battery_range = f32::from(charge_state.battery_level * 2);
     charge_state.ideal_battery_range = charge_state.battery_range;
