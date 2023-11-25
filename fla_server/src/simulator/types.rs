@@ -181,7 +181,6 @@ pub struct VehicleDataState {
 
     // Extra data not in VehicleData.
     pub elevation: u32,
-    pub ss: SimulationState,
 }
 
 impl From<&VehicleDataState> for StreamingData {

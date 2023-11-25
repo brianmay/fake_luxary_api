@@ -324,7 +324,6 @@ fn get_vehicle_data(vehicle: &VehicleDefinition, now: DateTime<Utc>) -> VehicleD
         },
 
         elevation: 0,
-        ss: SimulationState::idle(Instant::now()),
     }
 }
 
@@ -340,12 +339,15 @@ pub fn start(vehicle: VehicleDefinition) -> CommandSender {
         // Simulated real time values.
 
         let mut data = get_vehicle_data(&vehicle, Utc::now());
+        let mut ss: SimulationState = SimulationState::idle(Instant::now());
 
         loop {
+            let old_sse = SimulationStateEnum::from(&ss);
+
             let new_ss = select! {
-                Some(state) = maybe_update_drive(&data) => {
+                Some(state) = maybe_update_drive(&ss) => {
                     debug!("Car {:?} is driving", data.id);
-                    let (drive_state, elevation, ss) = get_updated_drive_state(&data, state);
+                    let (drive_state, elevation, ss) = get_updated_drive_state(&data, &ss, state);
                     data.drive_state = drive_state;
                     data.elevation = elevation;
                     let streaming_data: StreamingData = (&data).into();
@@ -362,17 +364,17 @@ pub fn start(vehicle: VehicleDefinition) -> CommandSender {
 
                     ss
                 }
-                Some(state) = maybe_update_charge(&data) => {
+                Some(state) = maybe_update_charge(&ss) => {
                     debug!("Car {:?} is charging", data.id);
-                    let (charge_state, ss) = get_updated_charge_state(&data, state);
+                    let (charge_state, ss) = get_updated_charge_state(&data, &ss, state);
                     data.charge_state = charge_state;
                     ss
                 }
-                Some(()) = maybe_sleep(&data) => {
+                Some(()) = maybe_sleep(&ss) => {
                     debug!("Car {:?} is going to sleep", data.id);
                     SimulationState::sleeping()
                 }
-                Some(()) = maybe_wake_up(&data) => {
+                Some(()) = maybe_wake_up(&ss) => {
                     debug!("Car {:?} is waking up", data.id);
                     SimulationState::idle(Instant::now())
                 }
@@ -380,30 +382,30 @@ pub fn start(vehicle: VehicleDefinition) -> CommandSender {
                     match cmd {
                         Some(Command::WakeUp(tx)) => {
                             debug!("Received wake request for car {:?}", data.id);
-                            if data.ss.is_asleep() {
+                            if ss.is_asleep() {
                                 debug!("Car {:?} is asleep, waking up", data.id);
                                 _= Err(ResponseError::DeviceNotAvailable).pipe(|x| tx.send(x));
-                                data.ss.wake_up(Instant::now())
+                                ss.wake_up(Instant::now())
                             } else {
                                 debug!("Car {:?} is awake", data.id);
                                 _ = Ok(()).pipe(|x| tx.send(x));
-                                data.ss
+                                ss
                             }
                         }
                         Some(Command::GetVehicleData(tx)) => {
                             debug!("Received get vehicle data for car {:?}", data.id);
-                            if data.ss.is_asleep() {
+                            if ss.is_asleep() {
                                 _= Err(ResponseError::DeviceNotAvailable).pipe(|x| tx.send(x));
-                                data.ss
+                                ss
                             } else {
                                 let response = (&data).into();
                                 _ = Ok(response).pipe(|x| tx.send(x));
-                                data.ss
+                                ss
                             }
                         }
                         Some(Command::Subscribe(tx)) => {
                             debug!("Received subscribe request for car {:?}", data.id);
-                            if data.ss.is_asleep() {
+                            if ss.is_asleep() {
                                 _ = Err(DataError::disconnected()).pipe(|x| tx.send(x));
                             } else if let Some(s_tx) = &maybe_s_tx {
                                 _ = s_tx.subscribe().pipe(Ok).pipe(|x| tx.send(x));
@@ -413,19 +415,19 @@ pub fn start(vehicle: VehicleDefinition) -> CommandSender {
                                 maybe_s_tx = Some(s_tx);
 
                             }
-                            data.ss
+                            ss
                         }
-                        Some(Command::Simulate(ss, tx)) => {
+                        Some(Command::Simulate(sse, tx)) => {
                             debug!("Received simulate request for car {:?} {ss:?}", data.id);
                             let now = Instant::now();
                             _ = Ok(()).pipe(|x| tx.send(x));
 
-                            match ss {
+                            match sse {
                                 SimulationStateEnum::Driving => {
-                                    data.ss.clone().drive(&data, now)
+                                    ss.drive(&data, now)
                                 }
                                 SimulationStateEnum::Charging  => {
-                                    data.ss.clone().charge(&data, now)
+                                    ss.charge(&data, now)
                                 }
                                 SimulationStateEnum::Idle => {
                                     SimulationState::idle(now)
@@ -439,7 +441,7 @@ pub fn start(vehicle: VehicleDefinition) -> CommandSender {
                         Some(Command::WatchState(tx)) => {
                             debug!("Received watch state request for car {:?}", data.id);
                             _ = s_tx.subscribe().pipe(|x| tx.send(x));
-                            data.ss
+                            ss
                         }
                         None => {
                             debug!("Command channel closed, exiting simulator");
@@ -450,9 +452,9 @@ pub fn start(vehicle: VehicleDefinition) -> CommandSender {
             };
 
             let new_ss = new_ss.update_sleep_time(Instant::now());
-            let sse: SimulationStateEnum = (&new_ss).into();
+            let new_sse: SimulationStateEnum = (&new_ss).into();
 
-            data.state = sse.into();
+            data.state = new_sse.into();
 
             Into::<SimulationStateEnum>::into(&new_ss)
                 .pipe(|x| s_tx.send(x))
@@ -468,15 +470,22 @@ pub fn start(vehicle: VehicleDefinition) -> CommandSender {
                 maybe_s_tx = None;
             }
 
-            data.ss = new_ss;
+            if old_sse != new_sse {
+                debug!(
+                    "Car {:?} changed state from {:?} to {:?}",
+                    data.id, old_sse, new_sse
+                );
+            }
+
+            ss = new_ss;
         }
     });
 
     CommandSender(c_tx)
 }
 
-async fn maybe_update_drive(vehicle: &VehicleDataState) -> Option<&SimulationDriveState> {
-    if let SimulationState::Driving { update_time, state } = &vehicle.ss {
+async fn maybe_update_drive(ss: &SimulationState) -> Option<&SimulationDriveState> {
+    if let SimulationState::Driving { update_time, state } = ss {
         sleep_until(*update_time).await;
         Some(state)
     } else {
@@ -484,8 +493,8 @@ async fn maybe_update_drive(vehicle: &VehicleDataState) -> Option<&SimulationDri
     }
 }
 
-async fn maybe_update_charge(vehicle: &VehicleDataState) -> Option<&SimulationChargeState> {
-    if let SimulationState::Charging { update_time, state } = &vehicle.ss {
+async fn maybe_update_charge(ss: &SimulationState) -> Option<&SimulationChargeState> {
+    if let SimulationState::Charging { update_time, state } = ss {
         sleep_until(*update_time).await;
         Some(state)
     } else {
@@ -493,8 +502,8 @@ async fn maybe_update_charge(vehicle: &VehicleDataState) -> Option<&SimulationCh
     }
 }
 
-async fn maybe_sleep(vehicle: &VehicleDataState) -> Option<()> {
-    if let SimulationState::Idle { sleep_time } = &vehicle.ss {
+async fn maybe_sleep(ss: &SimulationState) -> Option<()> {
+    if let SimulationState::Idle { sleep_time } = ss {
         sleep_until(*sleep_time).await;
         Some(())
     } else {
@@ -502,10 +511,10 @@ async fn maybe_sleep(vehicle: &VehicleDataState) -> Option<()> {
     }
 }
 
-async fn maybe_wake_up(vehicle: &VehicleDataState) -> Option<()> {
+async fn maybe_wake_up(ss: &SimulationState) -> Option<()> {
     if let SimulationState::Sleeping {
         wake_up_time: Some(wake_up_time),
-    } = &vehicle.ss
+    } = ss
     {
         sleep_until(*wake_up_time).await;
         Some(())
@@ -516,6 +525,7 @@ async fn maybe_wake_up(vehicle: &VehicleDataState) -> Option<()> {
 
 fn get_updated_drive_state(
     data: &VehicleDataState,
+    ss: &SimulationState,
     state: &SimulationDriveState,
 ) -> (DriveState, u32, SimulationState) {
     let now = Utc::now();
@@ -559,12 +569,13 @@ fn get_updated_drive_state(
     (
         drive_state,
         elevation,
-        data.ss.clone().drive(data, Instant::now()),
+        ss.clone().drive(data, Instant::now()),
     )
 }
 
 fn get_updated_charge_state(
     data: &VehicleDataState,
+    ss: &SimulationState,
     state: &SimulationChargeState,
 ) -> (ChargeState, SimulationState) {
     let now = Utc::now();
@@ -647,6 +658,6 @@ fn get_updated_charge_state(
     if finished_charging {
         (charge_state, SimulationState::idle(Instant::now()))
     } else {
-        (charge_state, data.ss.clone().charge(data, Instant::now()))
+        (charge_state, ss.clone().charge(data, Instant::now()))
     }
 }
