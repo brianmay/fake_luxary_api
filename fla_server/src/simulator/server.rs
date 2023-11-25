@@ -40,7 +40,7 @@ fn get_vehicle_data(vehicle: &VehicleDefinition, now: DateTime<Utc>) -> VehicleD
         id: vehicle.id,
         user_id: 800_001,
         vehicle_id: vehicle.vehicle_id,
-        vin: "TEST00000000VIN01".to_string(),
+        vin: vehicle.vin.to_string(),
         color: None,
         access_type: "OWNER".to_string(),
         granular_access: GranularAccess {

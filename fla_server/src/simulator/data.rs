@@ -9,7 +9,7 @@ pub fn get_vehicles() -> Vec<Vehicle> {
     let data = [VehicleDefinition {
         id: VehicleId::new(123_456_789),
         vehicle_id: VehicleGuid::new(999_456_789),
-        vin: "5YJ3E1EA7JF000000".to_string(),
+        vin: "5YJ3E1EA7JF000789".to_string(),
         display_name: "My Model 3".to_string(),
         option_codes: Some("AD15,MDL3,PBSB,RENA,BT37,ID3W,RF3G,S3PB,DRLH,APF0,COUS,BC3B,CH07,PC30,FC3P,FG31,GLFR,HL31,HM31,IL31,LLP1,LP01,MR31,FM3B,RS3H,SA3P,STCP,SC04,ST01,SU3C,T3CA,TW00,TM00,UT3P,WR00,AU3P,APH3,AF00,ZCST,MI00,CDM0".to_string()),
         color: Some("Black".to_string()),
