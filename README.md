@@ -11,21 +11,32 @@ implemented yet and future refactoring may change APIs.
 
 Run the simulator server:
 
-```
+```sh
 cargo-watch watch -x 'run --bin fla_server'
 ```
 
 Run the tests (requires server be running):
 
-```
+```sh
 cargo test
 ```
 
-Get data from the simulator:
+Note: Running tests will change the test mode on the server. Tests should not be run against Tesla servers.
 
-```
-cargo run --bin get_data_test
+Get data from the simulator (not streaming test uses `vehicle_id` not `id`):
+
+```sh
+cargo run --bin get_vehicles
+cargo run --bin get_data 123456789
 cargo run --bin streaming_test 999456789
+```
+
+Change the simulator mode (do not use this command on real Tesla server):
+
+```sh
+cargo run --bin simulate 123456789 driving
+cargo run --bin simulate 123456789 charging
+cargo run --bin simulate 123456789 idle
 ```
 
 Get data from real Tesla server:
@@ -34,10 +45,11 @@ Get data from real Tesla server:
 * This method uses [pass](https://www.passwordstore.org/) for keeping secrets, but should be easy to adopt to other methods.
 * Don't get confused between `id` (for json requests) and `vehicle_id` (required for streaming).
 
-```
+```sh
 pass insert tesla/access_token
 pass insert tesla/refresh_token
-./wrapper cargo run --bin get_data_test
+./wrapper cargo run --bin get_vehicles
+./wrapper cargo run --bin get_data <id>
 ./wrapper cargo run --bin streaming_test <vehicle_id>
 ```
 
@@ -45,7 +57,8 @@ pass insert tesla/refresh_token
 
 The above commands might fail due to type errors. Because there doesn't appear to be anywhere I can find an official list of types. A type error looks like:
 
-```
+```sh
+$
 thread 'main' panicked at /home/brian/tree/personal/fake_luxury_api/fla_client/src/lib.rs:353:17:
 Error deserializing vehicle: response.charge_state.charger_phases: invalid type: integer `1`, expected a string at line 1 column 984
 note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
@@ -53,9 +66,7 @@ note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
 
 In this case the problem is that charging_state has declared to require a String value, but we got an integer from Tesla instead.
 
-This was the fix:
-
-https://github.com/brianmay/fake_luxary_api/commit/7e269c764fd57d98bf6cd48a01754a3f277aca21
+This was the [fix](https://github.com/brianmay/fake_luxary_api/commit/7e269c764fd57d98bf6cd48a01754a3f277aca21) was simple.
 
 ```diff
 From 7e269c764fd57d98bf6cd48a01754a3f277aca21 Mon Sep 17 00:00:00 2001

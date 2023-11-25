@@ -192,7 +192,8 @@ async fn handle_socket_internal(
         let error = DataError::new(&tag, ErrorType::ClientError, "Invalid vehicle id");
         SocketError::ReportableError(error)
     })?;
-    let maybe_vehicle = vehicles.iter().find(|v| v.data.vehicle_id == vehicle_id);
+    let maybe_vehicle = vehicles.iter().find(|v| v.vehicle_id == vehicle_id);
+
     let Some(vehicle) = maybe_vehicle else {
         error!("Vehicle id not found: {vehicle_id:?}");
         let error = DataError::new(&tag, ErrorType::ClientError, "Invalid vehicle id");

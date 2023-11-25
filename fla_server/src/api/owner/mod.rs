@@ -1,6 +1,6 @@
 //! Tesla Owner API
 
-use self::commands::wake_up_handler;
+use self::commands::{simulate_handler, wake_up_handler};
 use self::vehicles::{vehicle_data_handler, vehicle_handler, vehicles_handler};
 use crate::{middleware, Config};
 use axum::routing::post;
@@ -14,6 +14,7 @@ pub fn router(config: &Config) -> Router {
     Router::new()
         .route("/api/1/vehicles", get(vehicles_handler))
         .route("/api/1/vehicles/:id", get(vehicle_handler))
+        .route("/api/1/vehicles/:id/simulate", post(simulate_handler))
         .route(
             "/api/1/vehicles/:id/vehicle_data",
             get(vehicle_data_handler),

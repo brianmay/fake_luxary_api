@@ -1,8 +1,9 @@
 use fla_common::{
+    simulator::SimulationStateEnum,
     streaming::StreamingData,
     types::{
         ChargeState, ClimateState, DriveState, GranularAccess, GuiSettings, Timestamp,
-        VehicleConfig, VehicleData, VehicleGuid, VehicleId, VehicleState,
+        VehicleConfig, VehicleData, VehicleGuid, VehicleId, VehicleState, VehicleStateEnum,
     },
 };
 use tokio::time::Instant;
@@ -13,7 +14,7 @@ pub struct SimulationDriveState {
     pub latitude: f64,
     pub longitude: f64,
     pub heading: u16,
-    pub speed: f64,
+    pub speed: f32,
 }
 
 impl From<&VehicleDataState> for SimulationDriveState {
@@ -74,6 +75,10 @@ impl SimulationState {
         matches!(self, Self::Sleeping { .. })
     }
 
+    pub fn is_driving(&self) -> bool {
+        matches!(self, Self::Driving { .. })
+    }
+
     pub fn drive(self, data: &VehicleDataState, now: Instant) -> Self {
         let state = if let Self::Driving { state, .. } = self {
             state
@@ -94,7 +99,7 @@ impl SimulationState {
         };
         Self::Charging {
             state,
-            update_time: now + std::time::Duration::from_secs(60),
+            update_time: now + std::time::Duration::from_secs(10),
         }
     }
 
@@ -121,6 +126,28 @@ impl SimulationState {
             wake_up_time: Some(now + std::time::Duration::from_secs(60)),
         }
     }
+
+    pub fn update_sleep_time(self, now: Instant) -> Self {
+        if let Self::Idle { .. } = self {
+            Self::Idle {
+                sleep_time: now + std::time::Duration::from_secs(60),
+            }
+        } else {
+            self
+        }
+    }
+}
+
+impl From<&SimulationState> for SimulationStateEnum {
+    fn from(state: &SimulationState) -> Self {
+        match state {
+            SimulationState::Driving { .. } => Self::Driving,
+            SimulationState::Charging { .. } => Self::Charging,
+            SimulationState::Idle { .. } => Self::Idle,
+            SimulationState::IdleNoSleep => Self::IdleNoSleep,
+            SimulationState::Sleeping { .. } => Self::Sleeping,
+        }
+    }
 }
 
 /// Current state of all Vehicle Data
@@ -136,7 +163,7 @@ pub struct VehicleDataState {
     pub access_type: String,
     pub granular_access: GranularAccess,
     pub tokens: Vec<String>,
-    pub state: Option<String>,
+    pub state: VehicleStateEnum,
     pub in_service: bool,
     pub id_s: String,
     pub calendar_enabled: bool,

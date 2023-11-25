@@ -139,8 +139,8 @@ pub struct StreamingData {
     /// Unix timestamp in milliseconds.
     pub time: Timestamp,
 
-    /// Speed in km per hour.
-    pub speed: Option<u32>,
+    /// Speed in miles per hour.
+    pub speed: Option<f32>,
 
     /// Odometer reading in km.
     pub odometer: Option<f32>,

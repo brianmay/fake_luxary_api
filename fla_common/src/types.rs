@@ -5,6 +5,8 @@ use std::{convert::Infallible, num::ParseIntError, str::FromStr};
 use serde::{Deserialize, Serialize, Serializer};
 use serde_enum_str::{Deserialize_enum_str, Serialize_enum_str};
 
+use crate::simulator::SimulationStateEnum;
+
 /// A timestamp
 pub type Timestamp = i64;
 
@@ -12,13 +14,13 @@ pub type Timestamp = i64;
 #[derive(Debug, Serialize, Deserialize, Clone, Copy, Eq, PartialEq)]
 pub struct VehicleId(u64);
 
-// impl FromStr for VehicleId {
-//     type Err = ParseIntError;
+impl FromStr for VehicleId {
+    type Err = ParseIntError;
 
-//     fn from_str(s: &str) -> Result<Self, Self::Err> {
-//         Ok(Self(s.parse()?))
-//     }
-// }
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        Ok(Self(s.parse()?))
+    }
+}
 
 impl ToString for VehicleId {
     fn to_string(&self) -> String {
@@ -79,6 +81,18 @@ pub enum VehicleStateEnum {
     /// Unknown shift state
     #[serde(other)]
     Unknown(String),
+}
+
+impl From<SimulationStateEnum> for VehicleStateEnum {
+    fn from(state: SimulationStateEnum) -> Self {
+        match state {
+            SimulationStateEnum::Driving => Self::Online,
+            SimulationStateEnum::Charging => Self::Online,
+            SimulationStateEnum::Idle => Self::Online,
+            SimulationStateEnum::IdleNoSleep => Self::Online,
+            SimulationStateEnum::Sleeping => Self::Offline,
+        }
+    }
 }
 
 /// The data associated with a Vehicle
@@ -267,7 +281,7 @@ pub struct ChargeState {
     pub scheduled_departure_time: Timestamp,
     pub scheduled_departure_time_minutes: i64,
     pub supercharger_session_trip_planner: bool,
-    pub time_to_full_charge: Option<f32>,
+    pub time_to_full_charge: Option<f64>,
     pub timestamp: i64,
     pub trip_charging: bool,
     pub usable_battery_level: i64,
@@ -335,7 +349,7 @@ pub struct DriveState {
     pub native_type: String,
     pub power: Option<i32>,
     pub shift_state: Option<ShiftState>,
-    pub speed: Option<u32>,
+    pub speed: Option<f32>,
     pub timestamp: Timestamp,
 }
 
@@ -579,7 +593,7 @@ pub struct VehicleData {
     pub access_type: String,
     pub granular_access: GranularAccess,
     pub tokens: Vec<String>,
-    pub state: Option<String>,
+    pub state: VehicleStateEnum,
     pub in_service: bool,
     pub id_s: String,
     pub calendar_enabled: bool,

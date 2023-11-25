@@ -3,9 +3,16 @@
 #![allow(clippy::unwrap_used)]
 #![allow(clippy::expect_used)]
 
-use fla_common::types::VehicleStateEnum;
+use clap::Parser;
+use fla_common::types::VehicleId;
 use fla_server::tokens::ScopeEnum;
 use fla_test::{get_client_with_token, get_token_with_scopes};
+
+#[derive(Parser, Debug)]
+#[command(author, version, about, long_about = None)]
+struct Parameters {
+    vehicle_id: VehicleId,
+}
 
 #[tokio::main]
 async fn main() {
@@ -25,28 +32,16 @@ async fn main() {
     ]
     .into();
 
+    let params = Parameters::parse();
+
     let scopes = [ScopeEnum::VehicleDeviceData].into();
     let token = get_token_with_scopes(&scopes);
     let client = get_client_with_token(token);
 
-    let vehicles = client.get_vehicles().await.unwrap();
-
-    for vehicle in vehicles.get_response().unwrap() {
-        println!("vehicle: {vehicle:#?}");
-
-        if vehicle.state != VehicleStateEnum::Online {
-            println!("vehicle is not online");
-            println!();
-            continue;
-        }
-
-        let vehicle_id = vehicle.id;
-        let vehicle_data = client
-            .get_vehicle_data(vehicle_id, &endpoints)
-            .await
-            .unwrap();
-        let vehicle_data = vehicle_data.get_response().unwrap();
-        println!("vehicle_data: {vehicle_data:#?}");
-        println!();
-    }
+    let vehicle_data = client
+        .get_vehicle_data(params.vehicle_id, &endpoints)
+        .await
+        .unwrap();
+    let vehicle_data = vehicle_data.get_response().unwrap();
+    println!("{vehicle_data:#?}");
 }

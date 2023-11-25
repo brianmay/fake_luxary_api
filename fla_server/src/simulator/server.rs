@@ -1,6 +1,6 @@
 //! Simulator server
 
-use std::{cmp::min, sync::Arc};
+use std::sync::Arc;
 
 use chrono::{DateTime, Utc};
 use fla_common::{
@@ -20,7 +20,7 @@ use tokio::{
 };
 use tracing::debug;
 
-use crate::errors::ResponseError;
+use crate::{errors::ResponseError, simulator::SimulationStateEnum};
 
 use super::{
     types::{SimulationChargeState, SimulationDriveState, SimulationState, VehicleDataState},
@@ -30,6 +30,11 @@ use super::{
 #[allow(clippy::too_many_lines)]
 fn get_vehicle_data(vehicle: &VehicleDefinition, now: DateTime<Utc>) -> VehicleDataState {
     let timestamp = now.timestamp();
+
+    let battery_level = 42;
+
+    // Simulated car has 1% battery for 2 miles of range.
+    let range = f32::from(battery_level * 2);
 
     VehicleDataState {
         id: vehicle.id,
@@ -45,17 +50,17 @@ fn get_vehicle_data(vehicle: &VehicleDefinition, now: DateTime<Utc>) -> VehicleD
             "4f993c5b9e2b937b".to_string(),
             "7a3153b1bbb48a96".to_string(),
         ],
-        state: None,
+        state: vehicle.state.clone(),
         in_service: false,
         id_s: vehicle.id_s.clone(),
-        calendar_enabled: true,
+        calendar_enabled: vehicle.calendar_enabled,
         api_version: 54,
         backseat_token: None,
         backseat_token_updated_at: None,
         charge_state: ChargeState {
             battery_heater_on: false,
-            battery_level: 42,
-            battery_range: 133.99,
+            battery_level,
+            battery_range: range,
             charge_amps: 48,
             charge_current_request: 48,
             charge_current_request_max: 48,
@@ -83,7 +88,7 @@ fn get_vehicle_data(vehicle: &VehicleDefinition, now: DateTime<Utc>) -> VehicleD
             fast_charger_brand: "<invalid>".to_string(),
             fast_charger_present: false,
             fast_charger_type: "<invalid>".to_string(),
-            ideal_battery_range: 133.99,
+            ideal_battery_range: range,
             managed_charging_active: Some(false),
             managed_charging_start_time: None,
             managed_charging_user_canceled: Some(false),
@@ -154,15 +159,15 @@ fn get_vehicle_data(vehicle: &VehicleDefinition, now: DateTime<Utc>) -> VehicleD
             active_route_traffic_minutes_delay: 0.0,
             gps_as_of: 1_692_137_422,
             heading: 0,
-            latitude: Some(0.0),
-            longitude: Some(0.0),
+            latitude: Some(37.776_549_4),
+            longitude: Some(-122.419_541_8),
             native_latitude: None,
             native_location_supported: 1,
             native_longitude: None,
             native_type: "wgs".to_string(),
             power: Some(0),
             shift_state: None,
-            speed: Some(0),
+            speed: Some(0.0),
             timestamp,
         },
         gui_settings: GuiSettings {
@@ -327,6 +332,7 @@ fn get_vehicle_data(vehicle: &VehicleDefinition, now: DateTime<Utc>) -> VehicleD
 #[must_use]
 #[allow(clippy::needless_pass_by_value)]
 pub fn start(vehicle: VehicleDefinition) -> CommandSender {
+    let (s_tx, _) = broadcast::channel(1);
     let (c_tx, mut c_rx) = mpsc::channel(1);
     let mut maybe_s_tx: Option<broadcast::Sender<Arc<StreamingData>>> = None;
 
@@ -350,7 +356,7 @@ pub fn start(vehicle: VehicleDefinition) -> CommandSender {
                     }
 
                     // If the car is stopped, stop sending data.
-                    if data.drive_state.speed.unwrap_or(0) == 0 {
+                    if data.drive_state.speed.unwrap_or(0.0) == 0.0 {
                         maybe_s_tx = None;
                     }
 
@@ -373,15 +379,19 @@ pub fn start(vehicle: VehicleDefinition) -> CommandSender {
                 cmd = c_rx.recv() => {
                     match cmd {
                         Some(Command::WakeUp(tx)) => {
+                            debug!("Received wake request for car {:?}", data.id);
                             if data.ss.is_asleep() {
+                                debug!("Car {:?} is asleep, waking up", data.id);
                                 _= Err(ResponseError::DeviceNotAvailable).pipe(|x| tx.send(x));
                                 data.ss.wake_up(Instant::now())
                             } else {
+                                debug!("Car {:?} is awake", data.id);
                                 _ = Ok(()).pipe(|x| tx.send(x));
                                 data.ss
                             }
                         }
                         Some(Command::GetVehicleData(tx)) => {
+                            debug!("Received get vehicle data for car {:?}", data.id);
                             if data.ss.is_asleep() {
                                 _= Err(ResponseError::DeviceNotAvailable).pipe(|x| tx.send(x));
                                 data.ss
@@ -392,6 +402,7 @@ pub fn start(vehicle: VehicleDefinition) -> CommandSender {
                             }
                         }
                         Some(Command::Subscribe(tx)) => {
+                            debug!("Received subscribe request for car {:?}", data.id);
                             if data.ss.is_asleep() {
                                 _ = Err(DataError::disconnected()).pipe(|x| tx.send(x));
                             } else if let Some(s_tx) = &maybe_s_tx {
@@ -404,6 +415,32 @@ pub fn start(vehicle: VehicleDefinition) -> CommandSender {
                             }
                             data.ss
                         }
+                        Some(Command::Simulate(ss, tx)) => {
+                            debug!("Received simulate request for car {:?} {ss:?}", data.id);
+                            let now = Instant::now();
+                            _ = Ok(()).pipe(|x| tx.send(x));
+
+                            match ss {
+                                SimulationStateEnum::Driving => {
+                                    data.ss.clone().drive(&data, now)
+                                }
+                                SimulationStateEnum::Charging  => {
+                                    data.ss.clone().charge(&data, now)
+                                }
+                                SimulationStateEnum::Idle => {
+                                    SimulationState::idle(now)
+                                }
+                                SimulationStateEnum::IdleNoSleep => SimulationState::IdleNoSleep,
+                                SimulationStateEnum::Sleeping => {
+                                    SimulationState::sleeping()
+                                }
+                            }
+                        }
+                        Some(Command::WatchState(tx)) => {
+                            debug!("Received watch state request for car {:?}", data.id);
+                            _ = s_tx.subscribe().pipe(|x| tx.send(x));
+                            data.ss
+                        }
                         None => {
                             debug!("Command channel closed, exiting simulator");
                             break;
@@ -412,8 +449,22 @@ pub fn start(vehicle: VehicleDefinition) -> CommandSender {
                 }
             };
 
+            let new_ss = new_ss.update_sleep_time(Instant::now());
+            let sse: SimulationStateEnum = (&new_ss).into();
+
+            data.state = sse.into();
+
+            Into::<SimulationStateEnum>::into(&new_ss)
+                .pipe(|x| s_tx.send(x))
+                .ok();
+
             // If the car is asleep, stop streaming
             if new_ss.is_asleep() {
+                maybe_s_tx = None;
+            }
+
+            // If the car is not driving, stop streaming
+            if !new_ss.is_driving() {
                 maybe_s_tx = None;
             }
 
@@ -468,13 +519,22 @@ fn get_updated_drive_state(
     state: &SimulationDriveState,
 ) -> (DriveState, u32, SimulationState) {
     let now = Utc::now();
-    let duration = state.time.duration_since(Instant::now());
+    let duration = Instant::now().duration_since(state.time).as_secs_f64();
+    let heading = f64::from(state.heading);
+    let speed = f64::from(state.speed);
 
+    // convert speed from mph to km per second
+    let speed = speed * 1.609_344 / 3600.0;
+
+    debug!("state: {state:?} {}", duration);
     let proj = FlatProjection::new(state.longitude, state.latitude);
     let mut point = proj.project(state.longitude, state.latitude);
-    point.x += duration.as_secs_f64() * 10.0;
-    point.y += duration.as_secs_f64() * 10.0;
+    debug!("point: {point:?}");
+    point.x += duration * speed * heading.to_radians().sin();
+    point.y += duration * speed * heading.to_radians().cos();
+    debug!("point: {point:?}");
     let (latitude, longitude) = proj.unproject(&point);
+    debug!("latitude: {latitude:?}, longitude: {longitude:?}");
 
     let drive_state = DriveState {
         active_route_latitude: latitude,
@@ -490,7 +550,7 @@ fn get_updated_drive_state(
         native_type: "wgs".to_string(),
         power: Some(0),
         shift_state: None,
-        speed: Some(0),
+        speed: Some(state.speed),
         timestamp: now.timestamp(),
     };
 
@@ -508,19 +568,31 @@ fn get_updated_charge_state(
     state: &SimulationChargeState,
 ) -> (ChargeState, SimulationState) {
     let now = Utc::now();
-    let duration = state.time.duration_since(Instant::now());
+    let duration = Instant::now().duration_since(state.time).as_secs_f64();
 
-    let battery_level_u64 = u64::from(state.battery_level) + duration.as_secs() / 60 * 10;
-    let battery_level = u8::try_from(battery_level_u64).unwrap_or(255);
+    // Charges at 10% per minute or 20 miles per minute.
+    let battery_level = f64::from(state.battery_level) + duration / 60.0 * 10.0;
+    let finished_charging = battery_level >= 100.0;
 
-    let finished_charging = battery_level >= 100;
-    let battery_level = min(battery_level, 100);
+    let battery_level = battery_level.min(100.0).max(0.0) as u8;
+
+    let time_to_full_charge = if finished_charging {
+        None
+    } else {
+        Some((100.0 - f64::from(battery_level)) / 10.0 / 60.0)
+    };
+
+    let range = f32::from(battery_level * 2);
+    debug!(
+        "charging, battery_level: {battery_level}, {range}, {:?}, {finished_charging}",
+        time_to_full_charge.map(|x| x * 60.0)
+    );
 
     let charge_state = ChargeState {
         battery_heater_on: false,
         battery_level,
-        battery_range: 133.99,
-        charge_amps: 48,
+        battery_range: range,
+        charge_amps: if finished_charging { 48 } else { 0 },
         charge_current_request: 48,
         charge_current_request_max: 48,
         charge_enable_request: true,
@@ -547,7 +619,7 @@ fn get_updated_charge_state(
         fast_charger_brand: "<invalid>".to_string(),
         fast_charger_present: false,
         fast_charger_type: "<invalid>".to_string(),
-        ideal_battery_range: 133.99,
+        ideal_battery_range: range,
         managed_charging_active: Some(false),
         managed_charging_start_time: None,
         managed_charging_user_canceled: Some(false),
@@ -565,7 +637,7 @@ fn get_updated_charge_state(
         scheduled_departure_time: 1_634_914_800,
         scheduled_departure_time_minutes: 480,
         supercharger_session_trip_planner: false,
-        time_to_full_charge: None,
+        time_to_full_charge,
         timestamp: now.timestamp(),
         trip_charging: false,
         usable_battery_level: 42,

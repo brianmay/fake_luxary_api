@@ -6,6 +6,7 @@ use fla_common::{
     responses::{
         TeslaResponse, TeslaResponseSuccess, VehicleDataResponse, VehicleResponse, VehiclesResponse,
     },
+    simulator::SimulationStateEnum,
     streaming::{
         DataError, FromServerStreamingMessage, StreamingData, StreamingFields,
         ToServerStreamingMessage,
@@ -295,8 +296,8 @@ impl Client {
         Ok(vehicles)
     }
 
-    pub async fn get_vehicle(&self, id: u64) -> Result<VehicleResponse, reqwest::Error> {
-        let url = format!("{}api/1/vehicles/{}", self.owner_url, id);
+    pub async fn get_vehicle(&self, id: VehicleId) -> Result<VehicleResponse, reqwest::Error> {
+        let url = format!("{}api/1/vehicles/{}", self.owner_url, id.to_string());
         let vehicles = reqwest::Client::new()
             .get(url)
             .header("Content-Type", "application/json")
@@ -357,8 +358,12 @@ impl Client {
         Ok(TeslaResponse::success(vehicles.response))
     }
 
-    pub async fn wake_up(&self, id: u64) -> Result<VehicleResponse, reqwest::Error> {
-        let url = format!("{}api/1/vehicles/{}/wake_up", self.owner_url, id);
+    pub async fn wake_up(&self, id: VehicleId) -> Result<VehicleResponse, reqwest::Error> {
+        let url = format!(
+            "{}api/1/vehicles/{}/wake_up",
+            self.owner_url,
+            id.to_string()
+        );
         let vehicle = reqwest::Client::new()
             .post(url)
             .header("Content-Type", "application/json")
@@ -370,6 +375,28 @@ impl Client {
             .await?;
 
         Ok(vehicle)
+    }
+
+    pub async fn simulate(
+        &self,
+        id: VehicleId,
+        state: SimulationStateEnum,
+    ) -> Result<(), reqwest::Error> {
+        let url = format!(
+            "{}api/1/vehicles/{}/simulate",
+            self.owner_url,
+            id.to_string()
+        );
+        reqwest::Client::new()
+            .post(url)
+            .header("Content-Type", "application/json")
+            .bearer_auth(&self.token.access_token)
+            .json(&state)
+            .send()
+            .await?
+            .error_for_status()?;
+
+        Ok(())
     }
 
     // FIXME: This is yuck

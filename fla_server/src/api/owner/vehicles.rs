@@ -4,6 +4,7 @@ use axum::{
     extract::{Path, Query, State},
     Extension, Json,
 };
+use futures::future::join_all;
 use std::{collections::HashSet, str::FromStr, sync::Arc};
 use tap::Pipe;
 use tracing::error;
@@ -35,7 +36,12 @@ pub async fn vehicles_handler(
         return Err(ResponseError::MissingScopes);
     }
 
-    let vehicles: Vec<VehicleDefinition> = vehicles.iter().map(|v| v.data.clone()).collect();
+    let vehicles: Vec<VehicleDefinition> = vehicles
+        .iter()
+        .map(|v| async { v.data.read().await.clone() })
+        .pipe(join_all)
+        .await;
+
     Ok(Json(TeslaResponse::success(vehicles)))
 }
 
@@ -60,9 +66,11 @@ pub async fn vehicle_handler(
 
     let vehicle = vehicles
         .iter()
-        .find(|v| v.data.id == id)
+        .find(|v| v.id == id)
         .ok_or(ResponseError::NotFound)?
         .data
+        .read()
+        .await
         .clone();
 
     Ok(Json(TeslaResponse::success(vehicle)))
@@ -89,7 +97,7 @@ pub async fn vehicle_data_handler(
 
     let vehicle = vehicles
         .iter()
-        .find(|v| v.data.id == id)
+        .find(|v| v.id == id)
         .ok_or(ResponseError::NotFound)?;
 
     let data = vehicle.command.get_vehicle_data().await?;
@@ -159,7 +167,7 @@ pub async fn vehicle_data_handler(
         state: data.state,
         in_service: data.in_service,
         id_s: data.id_s.clone(),
-        calendar_enabled: vehicle.data.calendar_enabled,
+        calendar_enabled: data.calendar_enabled,
         api_version: data.api_version,
         backseat_token: data.backseat_token,
         backseat_token_updated_at: data.backseat_token_updated_at,

@@ -1,7 +1,11 @@
 #![allow(clippy::unwrap_used)]
 #![allow(clippy::expect_used)]
 
-use fla_common::{streaming::StreamingFields, types::VehicleGuid};
+use fla_common::{
+    simulator::SimulationStateEnum,
+    streaming::StreamingFields,
+    types::{VehicleGuid, VehicleId},
+};
 use fla_test::get_client;
 
 #[tokio::test]
@@ -23,8 +27,14 @@ async fn test_streaming() {
         StreamingFields::Heading,
     ];
 
-    let id = VehicleGuid::new(999_456_000);
-    let mut streaming = client.streaming(id, fields).unwrap();
+    let id = VehicleId::new(123_456_000);
+    let guid = VehicleGuid::new(999_456_000);
+    let mut streaming = client.streaming(guid, fields).unwrap();
+
+    client
+        .simulate(id, SimulationStateEnum::Driving)
+        .await
+        .unwrap();
 
     // FIXME: This is yuck
     let mut iteration = 0;

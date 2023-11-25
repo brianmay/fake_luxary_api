@@ -1,6 +1,9 @@
 #![allow(clippy::unwrap_used)]
 
-use fla_common::types::{VehicleData, VehicleDefinition, VehicleGuid, VehicleId};
+use fla_common::{
+    simulator::SimulationStateEnum,
+    types::{VehicleData, VehicleDefinition, VehicleGuid, VehicleId},
+};
 use fla_test::get_client;
 use restest::assert_body_matches;
 
@@ -56,9 +59,11 @@ async fn test_vehicles() {
 
 #[tokio::test]
 async fn test_vehicle_1() {
+    let id = VehicleId::new(123_456_789);
     let client = get_client();
+
     let vehicle = client
-        .get_vehicle(123_456_789)
+        .get_vehicle(id)
         .await
         .unwrap()
         .get_response()
@@ -90,9 +95,11 @@ async fn test_vehicle_1() {
 
 #[tokio::test]
 async fn test_vehicle_2() {
+    let id = VehicleId::new(123_456_000);
     let client = get_client();
+
     let vehicle = client
-        .get_vehicle(123_456_000)
+        .get_vehicle(id)
         .await
         .unwrap()
         .get_response()
@@ -124,15 +131,22 @@ async fn test_vehicle_2() {
 
 #[tokio::test]
 async fn test_wakeup() {
+    let id = VehicleId::new(123_456_000);
     let client = get_client();
+
+    client
+        .simulate(id, SimulationStateEnum::IdleNoSleep)
+        .await
+        .unwrap();
+
     let vehicle = client
-        .get_vehicle(123_456_000)
+        .get_vehicle(id)
         .await
         .unwrap()
         .get_response()
         .unwrap();
 
-    assert_eq!(vehicle.id, VehicleId::new(123_456_000));
+    assert_eq!(vehicle.id, id);
     assert_eq!(vehicle.vehicle_id, VehicleGuid::new(999_456_000));
 
     assert_body_matches!(
@@ -170,15 +184,22 @@ async fn test_vehicle_data() {
     ]
     .into();
 
+    let id = VehicleId::new(123_456_000);
     let client = get_client();
+
+    client
+        .simulate(id, SimulationStateEnum::IdleNoSleep)
+        .await
+        .unwrap();
+
     let vehicle = client
-        .get_vehicle_data(VehicleId::new(123_456_000), &endpoints)
+        .get_vehicle_data(id, &endpoints)
         .await
         .unwrap()
         .get_response()
         .unwrap();
 
-    assert_eq!(vehicle.id, VehicleId::new(123_456_000));
+    assert_eq!(vehicle.id, id);
     assert_eq!(vehicle.vehicle_id, VehicleGuid::new(999_456_000));
 
     assert_body_matches!(
