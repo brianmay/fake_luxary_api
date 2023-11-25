@@ -331,6 +331,7 @@ fn get_vehicle_data(vehicle: &VehicleDefinition, now: DateTime<Utc>) -> VehicleD
 #[must_use]
 #[allow(clippy::needless_pass_by_value)]
 pub fn start(vehicle: VehicleDefinition) -> CommandSender {
+    let vehicle_id = vehicle.vehicle_id;
     let (s_tx, _) = broadcast::channel(1);
     let (c_tx, mut c_rx) = mpsc::channel(1);
     let mut maybe_s_tx: Option<broadcast::Sender<Arc<StreamingData>>> = None;
@@ -408,7 +409,7 @@ pub fn start(vehicle: VehicleDefinition) -> CommandSender {
                         Some(Command::Subscribe(tx)) => {
                             debug!("Received subscribe request for car {:?}", data.id);
                             if ss.is_asleep() {
-                                _ = Err(DataError::disconnected()).pipe(|x| tx.send(x));
+                                _ = Err(DataError::disconnected(data.vehicle_id)).pipe(|x| tx.send(x));
                             } else if let Some(s_tx) = &maybe_s_tx {
                                 _ = s_tx.subscribe().pipe(Ok).pipe(|x| tx.send(x));
                             } else {
@@ -497,7 +498,7 @@ pub fn start(vehicle: VehicleDefinition) -> CommandSender {
         }
     });
 
-    CommandSender(c_tx)
+    CommandSender(c_tx, vehicle_id)
 }
 
 async fn maybe_update_drive(ss: &SimulationState) -> Option<&SimulationDriveState> {

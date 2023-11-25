@@ -8,7 +8,7 @@ use std::sync::Arc;
 use fla_common::{
     simulator::SimulationStateEnum,
     streaming::{DataError, StreamingData},
-    types::VehicleData,
+    types::{VehicleData, VehicleGuid},
 };
 use tokio::sync::{broadcast, mpsc, oneshot};
 
@@ -29,7 +29,7 @@ enum Command {
 
 /// A handle to the simulator
 #[derive(Clone)]
-pub struct CommandSender(mpsc::Sender<Command>);
+pub struct CommandSender(mpsc::Sender<Command>, VehicleGuid);
 
 const TIMEOUT: std::time::Duration = std::time::Duration::from_secs(10);
 
@@ -83,12 +83,12 @@ impl CommandSender {
         self.0
             .send(Command::Subscribe(tx))
             .await
-            .map_err(|_| DataError::disconnected())?;
+            .map_err(|_| DataError::disconnected(self.1))?;
 
         tokio::time::timeout(TIMEOUT, rx)
             .await
-            .map_err(|_| DataError::disconnected())?
-            .map_err(|_| DataError::disconnected())?
+            .map_err(|_| DataError::disconnected(self.1))?
+            .map_err(|_| DataError::disconnected(self.1))?
     }
 
     /// Simulate a state

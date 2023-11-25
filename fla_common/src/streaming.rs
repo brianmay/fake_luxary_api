@@ -33,8 +33,12 @@ impl DataError {
         }
     }
 
-    pub fn disconnected() -> Self {
-        Self::new("vehicle", ErrorType::VehicleDisconnected, "disconnected")
+    pub fn disconnected(id: VehicleGuid) -> Self {
+        Self::new(
+            id.to_string(),
+            ErrorType::VehicleDisconnected,
+            "disconnected",
+        )
     }
 }
 
@@ -70,6 +74,15 @@ pub enum FromServerStreamingMessage {
 
     #[serde(rename = "data:error")]
     DataError(DataError),
+}
+
+impl FromServerStreamingMessage {
+    pub fn data_update(id: VehicleGuid, value: impl Into<String>) -> Self {
+        Self::DataUpdate {
+            tag: id.to_string(),
+            value: value.into(),
+        }
+    }
 }
 
 #[derive(Copy, Clone, Debug)]

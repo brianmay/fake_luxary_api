@@ -209,12 +209,12 @@ async fn handle_socket_internal(
                 let data = match data {
                     Ok(data) => data,
                     Err(_err) => {
-                        let error = DataError::disconnected();
+                        let error = DataError::disconnected(vehicle_id);
                         return Err(SocketError::ReportableError(error));
                     }
                 };
                 let value = serialize_fields(&fields, &data);
-                let msg = FromServerStreamingMessage::DataUpdate { tag: vehicle_id.to_string(), value };
+                let msg = FromServerStreamingMessage::data_update(vehicle_id, value );
 
                 debug!("Sending: {msg:?}");
                 send_message(socket, msg).await.map_err(|err| {
