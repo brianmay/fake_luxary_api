@@ -7,8 +7,8 @@ use fla_common::{
     streaming::{DataError, StreamingData},
     types::{
         ChargeState, ChargingStateEnum, ClimateState, DriveState, GranularAccess, GuiSettings,
-        MediaInfo, MediaState, SoftwareUpdate, SpeedLimitMode, VehicleConfig, VehicleDefinition,
-        VehicleState,
+        MediaInfo, MediaState, ShiftState, SoftwareUpdate, SpeedLimitMode, VehicleConfig,
+        VehicleDefinition, VehicleState,
     },
 };
 use flat_projection::FlatProjection;
@@ -563,7 +563,11 @@ fn get_updated_drive_state(
         native_longitude: None,
         native_type: "wgs".to_string(),
         power: Some(0),
-        shift_state: None,
+        shift_state: if finished_driving {
+            None
+        } else {
+            Some(ShiftState::Drive)
+        },
         speed: if finished_driving {
             Some(0.0)
         } else {
