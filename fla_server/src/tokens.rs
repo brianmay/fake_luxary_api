@@ -118,7 +118,7 @@ pub fn new_token(
     scopes: &HashSet<ScopeEnum>,
 ) -> Result<RawToken, TokenGenerationError> {
     let encoding_key = EncodingKey::from_secret(config.secret.as_ref());
-    let expires_in = Duration::minutes(10);
+    let expires_in = Duration::hours(8);
     let expires_at = Utc::now() + expires_in;
 
     let timestamp = usize::try_from(expires_at.timestamp())
