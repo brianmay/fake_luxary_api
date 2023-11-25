@@ -317,7 +317,7 @@ fn get_vehicle_data(vehicle: &VehicleDefinition, now: DateTime<Utc>) -> VehicleD
             tpms_soft_warning_rr: false,
             valet_mode: false,
             valet_pin_needed: true,
-            vehicle_name: Some("grADOFIN".to_string()),
+            vehicle_name: Some(vehicle.display_name.to_string()),
             vehicle_self_test_progress: Some(0),
             vehicle_self_test_requested: Some(false),
             webcam_available: true,
