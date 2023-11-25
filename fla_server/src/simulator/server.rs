@@ -577,17 +577,9 @@ fn get_updated_drive_state(
         native_location_supported: 1,
         native_longitude: None,
         native_type: "wgs".to_string(),
-        power: if finished_driving { None } else { Some(500) },
-        shift_state: if finished_driving {
-            None
-        } else {
-            Some(ShiftState::Drive)
-        },
-        speed: if finished_driving {
-            Some(0.0)
-        } else {
-            Some(state.speed)
-        },
+        power: Some(500),
+        shift_state: Some(ShiftState::Drive),
+        speed: Some(state.speed),
         timestamp: now.timestamp(),
     };
 
@@ -641,7 +633,7 @@ fn get_updated_charge_state(
         battery_heater_on: false,
         battery_level,
         battery_range: range,
-        charge_amps: if finished_charging { 48 } else { 0 },
+        charge_amps: 48,
         charge_current_request: 48,
         charge_current_request_max: 48,
         charge_enable_request: true,
@@ -662,11 +654,7 @@ fn get_updated_charge_state(
         charger_pilot_current: 48,
         charger_power: 0,
         charger_voltage: 2,
-        charging_state: if finished_charging {
-            ChargingStateEnum::Complete
-        } else {
-            ChargingStateEnum::Charging
-        },
+        charging_state: ChargingStateEnum::Charging,
         conn_charge_cable: "<invalid>".to_string(),
         est_battery_range: range,
         fast_charger_brand: "<invalid>".to_string(),
