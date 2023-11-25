@@ -36,6 +36,9 @@ pub enum ScopeEnum {
     /// The user's openid
     Openid,
 
+    /// The user's email
+    Email,
+
     /// The user's offline access
     OfflineAccess,
 
@@ -64,6 +67,7 @@ impl FromStr for ScopeEnum {
     fn from_str(s: &str) -> Result<Self, Self::Err> {
         match s {
             "openid" => Ok(Self::Openid),
+            "email" => Ok(Self::Email),
             "offline_access" => Ok(Self::OfflineAccess),
             "user_data" => Ok(Self::UserData),
             "vehicle_device_data" => Ok(Self::VehicleDeviceData),

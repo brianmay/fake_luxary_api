@@ -15,6 +15,7 @@ fn main() {
 
     let scopes = [
         tokens::ScopeEnum::Openid,
+        tokens::ScopeEnum::Email,
         tokens::ScopeEnum::OfflineAccess,
         tokens::ScopeEnum::UserData,
         tokens::ScopeEnum::VehicleDeviceData,

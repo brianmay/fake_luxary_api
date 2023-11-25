@@ -48,6 +48,7 @@ struct Environment {
 pub fn get_token_for_all_scopes() -> Token {
     let scopes = [
         tokens::ScopeEnum::Openid,
+        tokens::ScopeEnum::Email,
         tokens::ScopeEnum::OfflineAccess,
         tokens::ScopeEnum::UserData,
         tokens::ScopeEnum::VehicleDeviceData,
