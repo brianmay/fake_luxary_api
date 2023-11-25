@@ -577,7 +577,7 @@ fn get_updated_drive_state(
         native_location_supported: 1,
         native_longitude: None,
         native_type: "wgs".to_string(),
-        power: Some(500),
+        power: if finished_driving { None } else { Some(500) },
         shift_state: if finished_driving {
             None
         } else {
