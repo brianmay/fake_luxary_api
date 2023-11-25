@@ -1,16 +1,20 @@
 //! Simulate a car
 pub mod data;
+pub mod server;
+mod types;
 
 use std::sync::Arc;
 
-use fla_common::streaming::{DataError, StreamingData};
+use fla_common::{
+    streaming::{DataError, StreamingData},
+    types::VehicleData,
+};
 use tokio::sync::{broadcast, mpsc, oneshot};
 
-use crate::{errors, types::VehicleDataState};
-pub mod server;
+use crate::errors;
 
 type WakeUpResponse = Result<(), errors::ResponseError>;
-type VehicleDataResponse = Result<VehicleDataState, errors::ResponseError>;
+type VehicleDataResponse = Result<VehicleData, errors::ResponseError>;
 type SubscribeResponse = Result<broadcast::Receiver<Arc<StreamingData>>, DataError>;
 
 enum Command {

@@ -499,6 +499,7 @@ dependencies = [
  "axum-auth",
  "chrono",
  "fla_common",
+ "flat_projection",
  "http",
  "jsonwebtoken",
  "reqwest",
@@ -528,6 +529,15 @@ dependencies = [
  "tracing",
  "tracing-subscriber",
  "url",
+]
+
+[[package]]
+name = "flat_projection"
+version = "0.4.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "9b4ce0e42233898c39d5784f6bb1229e97ee6cf7064a3dad2c969f27f945e32d"
+dependencies = [
+ "num-traits",
 ]
 
 [[package]]

@@ -1,26 +1,31 @@
 //! Simulator server
 
-use std::sync::Arc;
+use std::{cmp::min, sync::Arc};
 
 use chrono::{DateTime, Utc};
 use fla_common::{
-    streaming::StreamingData,
+    streaming::{DataError, StreamingData},
     types::{
         ChargeState, ChargingStateEnum, ClimateState, DriveState, GranularAccess, GuiSettings,
         MediaInfo, MediaState, SoftwareUpdate, SpeedLimitMode, VehicleConfig, VehicleDefinition,
         VehicleState,
     },
 };
+use flat_projection::FlatProjection;
+use tap::Pipe;
 use tokio::{
     select,
     sync::{broadcast, mpsc},
-    time::sleep_until,
+    time::{sleep_until, Instant},
 };
 use tracing::debug;
 
-use crate::types::VehicleDataState;
+use crate::errors::ResponseError;
 
-use super::{Command, CommandSender};
+use super::{
+    types::{SimulationChargeState, SimulationDriveState, SimulationState, VehicleDataState},
+    Command, CommandSender,
+};
 
 #[allow(clippy::too_many_lines)]
 fn get_vehicle_data(vehicle: &VehicleDefinition, now: DateTime<Utc>) -> VehicleDataState {
@@ -312,6 +317,9 @@ fn get_vehicle_data(vehicle: &VehicleDefinition, now: DateTime<Utc>) -> VehicleD
             vehicle_self_test_requested: Some(false),
             webcam_available: true,
         },
+
+        elevation: 0,
+        ss: SimulationState::idle(Instant::now()),
     }
 }
 
@@ -320,42 +328,81 @@ fn get_vehicle_data(vehicle: &VehicleDefinition, now: DateTime<Utc>) -> VehicleD
 #[allow(clippy::needless_pass_by_value)]
 pub fn start(vehicle: VehicleDefinition) -> CommandSender {
     let (c_tx, mut c_rx) = mpsc::channel(1);
-    let (s_tx, _s_rx) = broadcast::channel(1);
+    let mut maybe_s_tx: Option<broadcast::Sender<Arc<StreamingData>>> = None;
 
-    let s_tx_clone = s_tx.clone();
     tokio::spawn(async move {
         // Simulated real time values.
 
-        let mut next_instant = tokio::time::Instant::now() + std::time::Duration::from_secs(1);
         let mut data = get_vehicle_data(&vehicle, Utc::now());
 
         loop {
-            select! {
-                () = sleep_until(next_instant) => {
-                    data.drive_state.timestamp = Utc::now().timestamp();
-                    data.charge_state.timestamp = Utc::now().timestamp();
-                    data.climate_state.timestamp = Utc::now().timestamp();
-                    data.gui_settings.timestamp = Utc::now().timestamp();
-                    data.vehicle_config.timestamp = Utc::now().timestamp();
-                    data.vehicle_state.timestamp = Utc::now().timestamp();
-                    next_instant = tokio::time::Instant::now() + std::time::Duration::from_secs(1);
-
+            let new_ss = select! {
+                Some(state) = maybe_update_drive(&data) => {
+                    debug!("Car {:?} is driving", data.id);
+                    let (drive_state, elevation, ss) = get_updated_drive_state(&data, state);
+                    data.drive_state = drive_state;
+                    data.elevation = elevation;
                     let streaming_data: StreamingData = (&data).into();
-                    // It is not an error if we are sending and nobody is listening.
-                    _ = s_tx_clone.send(Arc::new(streaming_data.clone()));
+
+                    if let Some(s_tx) = &maybe_s_tx {
+                        // It is not an error if we are sending and nobody is listening.
+                        _ = s_tx.send(Arc::new(streaming_data.clone()));
+                    }
+
+                    // If the car is stopped, stop sending data.
+                    if data.drive_state.speed.unwrap_or(0) == 0 {
+                        maybe_s_tx = None;
+                    }
+
+                    ss
+                }
+                Some(state) = maybe_update_charge(&data) => {
+                    debug!("Car {:?} is charging", data.id);
+                    let (charge_state, ss) = get_updated_charge_state(&data, state);
+                    data.charge_state = charge_state;
+                    ss
+                }
+                Some(()) = maybe_sleep(&data) => {
+                    debug!("Car {:?} is going to sleep", data.id);
+                    SimulationState::sleeping()
+                }
+                Some(()) = maybe_wake_up(&data) => {
+                    debug!("Car {:?} is waking up", data.id);
+                    SimulationState::idle(Instant::now())
                 }
                 cmd = c_rx.recv() => {
                     match cmd {
                         Some(Command::WakeUp(tx)) => {
-                            let rc = Ok(());
-                            let _ = tx.send(rc);
+                            if data.ss.is_asleep() {
+                                _= Err(ResponseError::DeviceNotAvailable).pipe(|x| tx.send(x));
+                                data.ss.wake_up(Instant::now())
+                            } else {
+                                _ = Ok(()).pipe(|x| tx.send(x));
+                                data.ss
+                            }
                         }
                         Some(Command::GetVehicleData(tx)) => {
-                            let _ = tx.send(Ok(data.clone()));
+                            if data.ss.is_asleep() {
+                                _= Err(ResponseError::DeviceNotAvailable).pipe(|x| tx.send(x));
+                                data.ss
+                            } else {
+                                let response = (&data).into();
+                                _ = Ok(response).pipe(|x| tx.send(x));
+                                data.ss
+                            }
                         }
                         Some(Command::Subscribe(tx)) => {
-                            let subscription = s_tx_clone.subscribe();
-                            let _ = tx.send(Ok(subscription));
+                            if data.ss.is_asleep() {
+                                _ = Err(DataError::disconnected()).pipe(|x| tx.send(x));
+                            } else if let Some(s_tx) = &maybe_s_tx {
+                                _ = s_tx.subscribe().pipe(Ok).pipe(|x| tx.send(x));
+                            } else {
+                                let (s_tx, s_rx) = broadcast::channel(1);
+                                _ = s_rx.pipe(Ok).pipe(|x| tx.send(x));
+                                maybe_s_tx = Some(s_tx);
+
+                            }
+                            data.ss
                         }
                         None => {
                             debug!("Command channel closed, exiting simulator");
@@ -363,9 +410,171 @@ pub fn start(vehicle: VehicleDefinition) -> CommandSender {
                         }
                     }
                 }
+            };
+
+            // If the car is asleep, stop streaming
+            if new_ss.is_asleep() {
+                maybe_s_tx = None;
             }
+
+            data.ss = new_ss;
         }
     });
 
     CommandSender(c_tx)
+}
+
+async fn maybe_update_drive(vehicle: &VehicleDataState) -> Option<&SimulationDriveState> {
+    if let SimulationState::Driving { update_time, state } = &vehicle.ss {
+        sleep_until(*update_time).await;
+        Some(state)
+    } else {
+        None
+    }
+}
+
+async fn maybe_update_charge(vehicle: &VehicleDataState) -> Option<&SimulationChargeState> {
+    if let SimulationState::Charging { update_time, state } = &vehicle.ss {
+        sleep_until(*update_time).await;
+        Some(state)
+    } else {
+        None
+    }
+}
+
+async fn maybe_sleep(vehicle: &VehicleDataState) -> Option<()> {
+    if let SimulationState::Idle { sleep_time } = &vehicle.ss {
+        sleep_until(*sleep_time).await;
+        Some(())
+    } else {
+        None
+    }
+}
+
+async fn maybe_wake_up(vehicle: &VehicleDataState) -> Option<()> {
+    if let SimulationState::Sleeping {
+        wake_up_time: Some(wake_up_time),
+    } = &vehicle.ss
+    {
+        sleep_until(*wake_up_time).await;
+        Some(())
+    } else {
+        None
+    }
+}
+
+fn get_updated_drive_state(
+    data: &VehicleDataState,
+    state: &SimulationDriveState,
+) -> (DriveState, u32, SimulationState) {
+    let now = Utc::now();
+    let duration = state.time.duration_since(Instant::now());
+
+    let proj = FlatProjection::new(state.longitude, state.latitude);
+    let mut point = proj.project(state.longitude, state.latitude);
+    point.x += duration.as_secs_f64() * 10.0;
+    point.y += duration.as_secs_f64() * 10.0;
+    let (latitude, longitude) = proj.unproject(&point);
+
+    let drive_state = DriveState {
+        active_route_latitude: latitude,
+        active_route_longitude: longitude,
+        active_route_traffic_minutes_delay: 0.0,
+        gps_as_of: now.timestamp(),
+        heading: 0,
+        latitude: Some(latitude),
+        longitude: Some(longitude),
+        native_latitude: None,
+        native_location_supported: 1,
+        native_longitude: None,
+        native_type: "wgs".to_string(),
+        power: Some(0),
+        shift_state: None,
+        speed: Some(0),
+        timestamp: now.timestamp(),
+    };
+
+    let elevation = 0;
+
+    (
+        drive_state,
+        elevation,
+        data.ss.clone().drive(data, Instant::now()),
+    )
+}
+
+fn get_updated_charge_state(
+    data: &VehicleDataState,
+    state: &SimulationChargeState,
+) -> (ChargeState, SimulationState) {
+    let now = Utc::now();
+    let duration = state.time.duration_since(Instant::now());
+
+    let battery_level_u64 = u64::from(state.battery_level) + duration.as_secs() / 60 * 10;
+    let battery_level = u8::try_from(battery_level_u64).unwrap_or(255);
+
+    let finished_charging = battery_level >= 100;
+    let battery_level = min(battery_level, 100);
+
+    let charge_state = ChargeState {
+        battery_heater_on: false,
+        battery_level,
+        battery_range: 133.99,
+        charge_amps: 48,
+        charge_current_request: 48,
+        charge_current_request_max: 48,
+        charge_enable_request: true,
+        charge_energy_added: 48.45,
+        charge_limit_soc: 0,
+        charge_limit_soc_max: 100,
+        charge_limit_soc_min: 50,
+        charge_limit_soc_std: 90,
+        charge_miles_added_ideal: 202.0,
+        charge_miles_added_rated: 202.0,
+        charge_port_cold_weather_mode: Some(false),
+        charge_port_color: "<invalid>".to_string(),
+        charge_port_door_open: false,
+        charge_port_latch: "Engaged".to_string(),
+        charge_rate: None,
+        charger_actual_current: 0,
+        charger_phases: None,
+        charger_pilot_current: 48,
+        charger_power: 0,
+        charger_voltage: 2,
+        charging_state: ChargingStateEnum::Charging,
+        conn_charge_cable: "<invalid>".to_string(),
+        est_battery_range: 143.88,
+        fast_charger_brand: "<invalid>".to_string(),
+        fast_charger_present: false,
+        fast_charger_type: "<invalid>".to_string(),
+        ideal_battery_range: 133.99,
+        managed_charging_active: Some(false),
+        managed_charging_start_time: None,
+        managed_charging_user_canceled: Some(false),
+        max_range_charge_counter: 0,
+        minutes_to_full_charge: 0,
+        not_enough_power_to_heat: None,
+        off_peak_charging_enabled: false,
+        off_peak_charging_times: "all_week".to_string(),
+        off_peak_hours_end_time: 360,
+        preconditioning_enabled: false,
+        preconditioning_times: "all_week".to_string(),
+        scheduled_charging_mode: "Off".to_string(),
+        scheduled_charging_pending: false,
+        scheduled_charging_start_time: None,
+        scheduled_departure_time: 1_634_914_800,
+        scheduled_departure_time_minutes: 480,
+        supercharger_session_trip_planner: false,
+        time_to_full_charge: None,
+        timestamp: now.timestamp(),
+        trip_charging: false,
+        usable_battery_level: 42,
+        user_charge_enable_request: None,
+    };
+
+    if finished_charging {
+        (charge_state, SimulationState::idle(Instant::now()))
+    } else {
+        (charge_state, data.ss.clone().charge(data, Instant::now()))
+    }
 }

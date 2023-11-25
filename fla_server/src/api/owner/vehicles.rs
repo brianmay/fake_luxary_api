@@ -112,40 +112,39 @@ pub async fn vehicle_data_handler(
 
     let charge_state = data
         .charge_state
-        .pipe(Some)
         .filter(|_| endpoints.contains(&VehicleDataEndpoint::ChargeState));
 
     let climate_state = data
         .climate_state
-        .pipe(Some)
         .filter(|_| endpoints.contains(&VehicleDataEndpoint::ClimateState));
 
     let drive_state = if endpoints.contains(&VehicleDataEndpoint::DriveState) {
-        let location = endpoints.contains(&VehicleDataEndpoint::LocationData);
+        if let Some(ds) = data.drive_state {
+            let location = endpoints.contains(&VehicleDataEndpoint::LocationData);
 
-        DriveState {
-            latitude: data.drive_state.latitude.filter(|_| location),
-            longitude: data.drive_state.longitude.filter(|_| location),
-            ..data.drive_state
+            DriveState {
+                latitude: ds.latitude.filter(|_| location),
+                longitude: ds.longitude.filter(|_| location),
+                ..ds
+            }
+            .pipe(Some)
+        } else {
+            None
         }
-        .pipe(Some)
     } else {
         None
     };
 
     let gui_settings = data
         .gui_settings
-        .pipe(Some)
         .filter(|_| endpoints.contains(&VehicleDataEndpoint::GuiSettings));
 
     let vehicle_config = data
         .vehicle_config
-        .pipe(Some)
         .filter(|_| endpoints.contains(&VehicleDataEndpoint::VehicleConfig));
 
     let vehicle_state = data
         .vehicle_state
-        .pipe(Some)
         .filter(|_| endpoints.contains(&VehicleDataEndpoint::VehicleState));
 
     let response = VehicleData {

@@ -155,10 +155,10 @@ pub struct StreamingData {
     pub est_heading: Option<u16>,
 
     /// Estimated latitude in decimal degrees.
-    pub est_lat: Option<f32>,
+    pub est_lat: Option<f64>,
 
     /// Estimated longitude in decimal degrees.
-    pub est_lng: Option<f32>,
+    pub est_lng: Option<f64>,
 
     /// Power usage in watts.
     pub power: Option<i32>,
