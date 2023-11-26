@@ -106,12 +106,12 @@ async fn handle_socket(
         Err(SocketError::ReportableError(err)) => {
             error!("Reportable error: {err}");
             send_error(&mut socket, err).await;
-            _ = socket.close().await;
+            // _ = socket.close().await;
         }
 
         Err(SocketError::NotReportableError(err)) => {
             error!("Not reportable error: {err}");
-            _ = socket.close().await;
+            // _ = socket.close().await;
         }
 
         Ok(()) => {

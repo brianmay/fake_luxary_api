@@ -40,6 +40,14 @@ impl DataError {
             "disconnected",
         )
     }
+
+    pub fn offline(id: VehicleGuid) -> Self {
+        Self::new(
+            id.to_string(),
+            ErrorType::VehicleDisconnected,
+            "Vehicle is offline",
+        )
+    }
 }
 
 impl std::fmt::Display for DataError {

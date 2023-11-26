@@ -409,7 +409,7 @@ pub fn start(vehicle: VehicleDefinition) -> CommandSender {
                         Some(Command::Subscribe(tx)) => {
                             debug!("Received subscribe request for car {:?}", data.id);
                             if ss.is_asleep() {
-                                _ = Err(DataError::disconnected(data.vehicle_id)).pipe(|x| tx.send(x));
+                                _ = Err(DataError::offline(data.vehicle_id)).pipe(|x| tx.send(x));
                             } else if let Some(s_tx) = &maybe_s_tx {
                                 _ = s_tx.subscribe().pipe(Ok).pipe(|x| tx.send(x));
                             } else {
