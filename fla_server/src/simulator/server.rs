@@ -387,7 +387,7 @@ pub fn start(vehicle: VehicleDefinition) -> CommandSender {
                             } else {
                                 debug!("Car {:?} is awake", data.id);
                                 _ = Ok(()).pipe(|x| tx.send(x));
-                                ss
+                                ss.update_sleep_time(Instant::now())
                             }
                         }
                         Some(Command::GetVehicleData(tx)) => {
@@ -398,7 +398,7 @@ pub fn start(vehicle: VehicleDefinition) -> CommandSender {
                             } else {
                                 let response = (&data).into();
                                 _ = Ok(response).pipe(|x| tx.send(x));
-                                ss
+                                ss.update_sleep_time(Instant::now())
                             }
                         }
                         Some(Command::Subscribe(tx)) => {
@@ -448,7 +448,6 @@ pub fn start(vehicle: VehicleDefinition) -> CommandSender {
                 }
             };
 
-            let new_ss = new_ss.update_sleep_time(Instant::now());
             let new_sse: SimulationStateEnum = (&new_ss).into();
 
             data.state = new_sse.into();
