@@ -39,32 +39,40 @@ fn renew_token(
         }
     };
 
-    let scopes: HashSet<tokens::ScopeEnum> = request
+    let requested_scopes: HashSet<tokens::ScopeEnum> = request
         .scope
         .split(' ')
         .map(std::string::ToString::to_string)
         .map(|s| ScopeEnum::from_str(&s))
         .collect::<Result<HashSet<_>, ()>>()
         .map_err(|()| errors::ResponseError::internal_error("Could not parse scopes".to_string()))?
-        .intersection(&claims.scopes)
+        .difference(&claims.scopes)
         .copied()
         .collect();
 
-    if !scopes.contains(&tokens::ScopeEnum::Openid) {
+    if !requested_scopes.is_empty() {
+        // We already have all the requested scopes.
+        return Err(errors::ResponseError::internal_error(format!(
+            "Scopes were requested but not available: {:?}",
+            requested_scopes
+        )));
+    }
+
+    if !claims.scopes.contains(&tokens::ScopeEnum::Openid) {
         // We require openid scope for now.
         return Err(errors::ResponseError::not_implemented(
             "We require openid scope for now.".to_string(),
         ));
     }
 
-    if !scopes.contains(&tokens::ScopeEnum::OfflineAccess) {
+    if !claims.scopes.contains(&tokens::ScopeEnum::OfflineAccess) {
         // We require offline_access scope for now.
         return Err(errors::ResponseError::not_implemented(
             "We require offline_access scope for now.".to_string(),
         ));
     }
 
-    let token = new_token(config, &scopes).map_err(|err| {
+    let token = new_token(config, &claims.scopes).map_err(|err| {
         errors::ResponseError::internal_error(format!("Could not create token: {err:?}"))
     })?;
 
