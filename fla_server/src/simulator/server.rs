@@ -467,10 +467,12 @@ pub fn start(vehicle: VehicleDefinition) -> CommandSender {
                         data.drive_state.speed = None;
                         data.drive_state.shift_state = None;
                         data.drive_state.power = None;
+                        data.drive_state.timestamp = Utc::now().timestamp_millis();
                     }
                     (SimulationStateEnum::Charging, _) => {
                         data.charge_state.charging_state = ChargingStateEnum::Disconnected;
                         data.charge_state.charge_amps = 0;
+                        data.charge_state.timestamp = Utc::now().timestamp_millis();
                     }
                     (SimulationStateEnum::Idle, _) => {}
                     (SimulationStateEnum::IdleNoSleep, _) => {}
