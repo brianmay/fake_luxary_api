@@ -558,7 +558,7 @@ fn get_updated_drive_state(
     let distance = duration * speed;
     point.x += distance * heading.to_radians().sin();
     point.y += distance * heading.to_radians().cos();
-    let (latitude, longitude) = proj.unproject(&point);
+    let (longitude, latitude) = proj.unproject(&point);
 
     let battery_level = f64::from(state.battery_level) - distance;
     let finished_driving = battery_level <= 0.0;
