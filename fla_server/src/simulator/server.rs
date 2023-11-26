@@ -29,7 +29,7 @@ use super::{
 
 #[allow(clippy::too_many_lines)]
 fn get_vehicle_data(vehicle: &VehicleDefinition, now: DateTime<Utc>) -> VehicleDataState {
-    let timestamp = now.timestamp();
+    let timestamp = now.timestamp_millis();
 
     let battery_level = 42;
 
@@ -570,7 +570,7 @@ fn get_updated_drive_state(
         active_route_latitude: latitude,
         active_route_longitude: longitude,
         active_route_traffic_minutes_delay: 0.0,
-        gps_as_of: now.timestamp(),
+        gps_as_of: now.timestamp_millis(),
         heading: 0,
         latitude: Some(latitude),
         longitude: Some(longitude),
@@ -581,7 +581,7 @@ fn get_updated_drive_state(
         power: Some(500),
         shift_state: Some(ShiftState::Drive),
         speed: Some(state.speed),
-        timestamp: now.timestamp(),
+        timestamp: now.timestamp_millis(),
     };
 
     let mut charge_state = data.charge_state.clone();
@@ -680,7 +680,7 @@ fn get_updated_charge_state(
         scheduled_departure_time_minutes: 480,
         supercharger_session_trip_planner: false,
         time_to_full_charge,
-        timestamp: now.timestamp(),
+        timestamp: now.timestamp_millis(),
         trip_charging: false,
         usable_battery_level: 42,
         user_charge_enable_request: None,
