@@ -360,11 +360,6 @@ pub fn start(vehicle: VehicleDefinition) -> CommandSender {
                         _ = s_tx.send(Arc::new(streaming_data.clone()));
                     }
 
-                    // If the car is stopped, stop sending data.
-                    if data.drive_state.speed.unwrap_or(0.0) == 0.0 {
-                        maybe_s_tx = None;
-                    }
-
                     ss
                 }
                 Some(state) = maybe_update_charge(&ss) => {
@@ -416,7 +411,6 @@ pub fn start(vehicle: VehicleDefinition) -> CommandSender {
                                 let (s_tx, s_rx) = broadcast::channel(1);
                                 _ = s_rx.pipe(Ok).pipe(|x| tx.send(x));
                                 maybe_s_tx = Some(s_tx);
-
                             }
                             ss
                         }
@@ -465,11 +459,6 @@ pub fn start(vehicle: VehicleDefinition) -> CommandSender {
 
             // If the car is asleep, stop streaming
             if new_ss.is_asleep() {
-                maybe_s_tx = None;
-            }
-
-            // If the car is not driving, stop streaming
-            if !new_ss.is_driving() {
                 maybe_s_tx = None;
             }
 
