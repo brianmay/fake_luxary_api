@@ -1,5 +1,5 @@
 //! Streaming handler
-use std::sync::Arc;
+use std::{collections::HashMap, sync::Arc};
 
 use axum::{
     extract::{
@@ -17,8 +17,9 @@ use fla_common::{
     },
     types::VehicleGuid,
 };
+use futures::{stream::FuturesUnordered, StreamExt};
 use thiserror::Error;
-use tokio::select;
+use tokio::{select, sync::broadcast};
 use tracing::{debug, error};
 
 use crate::{
@@ -120,129 +121,124 @@ async fn handle_socket(
     }
 }
 
+struct Subscription {
+    vehicle_id: VehicleGuid,
+    fields: Arc<Vec<StreamingFields>>,
+    rx: broadcast::Receiver<Arc<StreamingData>>,
+}
+
 async fn handle_socket_internal(
     socket: &mut WebSocket,
     config: Arc<tokens::Config>,
     vehicles: Arc<Vec<Vehicle>>,
 ) -> Result<(), SocketError> {
-    // Receive the subscription message.
-    let msg = match socket.recv().await {
-        Some(Ok(Message::Text(text))) => text,
-        Some(Ok(Message::Binary(binary))) => match String::from_utf8(binary) {
-            Ok(text) => text,
-            Err(err) => {
-                let error = format!("Could not parse message: {err}");
-                return Err(SocketError::NotReportableError(error));
-            }
-        },
-        Some(Ok(msg)) => {
-            let error = format!("Unexpected message: {msg:?}");
-            return Err(SocketError::NotReportableError(error));
-        }
-        Some(Err(_)) | None => {
-            let error = "Connection closed waiting for subscription".to_string();
-            return Err(SocketError::NotReportableError(error));
-        }
-    };
-
-    // Parse the subscription message.
-    let msg = serde_json::from_str::<ToServerStreamingMessage>(&msg).map_err(|err| {
-        error!("Could not parse subscription message: {err}");
-        let error = "Could not parse subscription message".to_string();
-        SocketError::NotReportableError(error)
-    })?;
-
-    // Extract the values from the subscription message.
-    let (token, value, tag) = match msg {
-        ToServerStreamingMessage::DataSubscribeOauth { token, value, tag } => (token, value, tag),
-    };
-
-    // Deserialize the incoming data
-    let fields = deserialize_field_names(&value);
-
-    // Validate the token
-    let claims = validate_access_token(&token, &config).map_err(|err| {
-        error!("Invalid token: {err}");
-        let error = DataError::new(&tag, ErrorType::ClientError, "Invalid token");
-        SocketError::ReportableError(error)
-    })?;
-
-    // Validate the claims
-    if !claims
-        .scopes
-        .contains(&tokens::ScopeEnum::VehicleDeviceData)
-    {
-        let error = DataError::new(&tag, ErrorType::ClientError, "Invalid scope");
-        return Err(SocketError::ReportableError(error));
-    }
-
     // Say hello to the client. Pretend to be polite. The client will never guess the truth.
     let hello = FromServerStreamingMessage::ControlHello {
         connection_timeout: 30000,
     };
     send_message(socket, hello).await.map_err(|err| {
         error!("Could not send hello: {err:?}");
-        let error = DataError::new(&tag, ErrorType::ClientError, "Could not send hello");
-        SocketError::ReportableError(error)
+        SocketError::NotReportableError("Could not send hello".to_string())
     })?;
 
-    // The vehicle_id is the tag
-    let vehicle_id: VehicleGuid = tag.clone().parse().map_err(|err| {
-        error!("Vehicle id is not an integer: {err}");
-        let error = DataError::new(&tag, ErrorType::ClientError, "Invalid vehicle id");
-        SocketError::ReportableError(error)
-    })?;
-    let maybe_vehicle = vehicles.iter().find(|v| v.vehicle_id == vehicle_id);
-
-    let Some(vehicle) = maybe_vehicle else {
-        error!("Vehicle id not found: {vehicle_id:?}");
-        let error = DataError::new(&tag, ErrorType::ClientError, "Invalid vehicle id");
-        return Err(SocketError::ReportableError(error));
-    };
-    let mut rx = vehicle.command.subscribe().await?;
+    let mut subscriptions: HashMap<VehicleGuid, Subscription> = HashMap::new();
 
     // Wait for data, either from simulator or from client.
     loop {
-        select! {
-            // We got Data from the simulator.
-            data = rx.recv() => {
-                let data = match data {
-                    Ok(data) => data,
-                    Err(_err) => {
-                        let error = DataError::disconnected(vehicle_id);
-                        return Err(SocketError::ReportableError(error));
-                    }
-                };
-                let value = serialize_fields(&fields, &data);
-                let msg = FromServerStreamingMessage::data_update(vehicle_id, value );
+        let delete_subscription;
+        let add_subscription;
 
-                debug!("Sending: {msg:?}");
-                send_message(socket, msg).await.map_err(|err| {
-                    let error = format!("Could not send message: {err:?}");
-                    // If we could not send the message, the client is probably gone.
-                    // We should probably make funeral arrangements.
-                    // But no point trying to tell the client about it.
-                    SocketError::NotReportableError(error)
-                })?
-            }
-            // We got a message from the client.
-            // We don't expect any messages from the client.
-            // The client still thinks we are friends.
-            msg = socket.recv() => {
-                match msg {
-                    Some(Ok(msg)) => {
-                        debug!("Unexpected Received: {msg:?}");
-                    },
+        {
+            let mut futures = {
+                let futures = FuturesUnordered::new();
+                for (id, s) in subscriptions.iter_mut() {
+                    futures.push(async { (*id, s.fields.clone(), s.rx.recv().await) });
+                }
+                futures
+            };
 
-                    Some(Err(err)) => {
-                        debug!("Error receiving message: {err}");
+            (delete_subscription, add_subscription) = select! {
+                // We got Data from the simulator.
+                Some((vehicle_id, fields, data)) = futures.next() => {
+                    match data {
+                        Ok(data) => {
+                            let value = serialize_fields(&fields, &data);
+                            let msg = FromServerStreamingMessage::data_update(vehicle_id, value );
+
+                            debug!("Sending: {msg:?}");
+                            send_message(socket, msg).await.map_err(|err| {
+                                let error = format!("Could not send message: {err:?}");
+                                // If we could not send the message, the client is probably gone.
+                                // We should probably make funeral arrangements.
+                                // But no point trying to tell the client about it.
+                                SocketError::NotReportableError(error)
+                            })?;
+
+                            (None, None)
+                        }
+                        Err(_err) => {
+                            let error = DataError::disconnected(vehicle_id);
+                            send_error(socket, error).await;
+                            (Some(vehicle_id), None)
+                        }
                     }
-                    None =>  {
-                        debug!("Simulator disconnected");
-                        break;
+                }
+
+                // We got a message from the client.
+                // We don't expect any messages from the client.
+                // The client still thinks we are friends.
+                msg = socket.recv() => {
+                    let text = match msg {
+                        Some(Ok(Message::Close(_))) => {
+                            debug!("Client disconnected");
+                            break;
+                        }
+                        Some(Ok(Message::Text(text))) => Some(text),
+                            Some(Ok(Message::Binary(binary))) => match String::from_utf8(binary) {
+                                Ok(text) => Some(text),
+                                Err(err) => {
+                                    error!("Could not parse message: {err}");
+                                    let error = format!("Could not parse message: {err}");
+                                    return Err(SocketError::NotReportableError(error));
+                                }
+                            },
+
+                        Some(Ok(Message::Ping(_))) => {
+                            debug!("Ping");
+                            None
+                        }
+
+                        Some(Ok(Message::Pong(_))) => {
+                            debug!("Pong");
+                            None
+                        }
+
+                        Some(Err(err)) => {
+                            debug!("Error receiving message: {err}");
+                            let error = format!("Error receiving message: {err}");
+                            return Err(SocketError::NotReportableError(error));
+                        }
+                        None =>  {
+                            debug!("Simulator disconnected");
+                            break;
+                        }
+                    };
+
+                    if let Some(text) = text {
+                        debug!("Received: {text}");
+                        process_client_message(text, &config, &vehicles).await?
+                    } else  { (None, None)
                     }
                 }
             }
+        }
+
+        if let Some(vehicle_id) = delete_subscription {
+            subscriptions.remove(&vehicle_id);
+        }
+
+        if let Some(subscription) = add_subscription {
+            subscriptions.insert(subscription.vehicle_id, subscription);
         }
     }
 
@@ -270,4 +266,76 @@ async fn send_message(
 async fn send_error(socket: &mut WebSocket, error: DataError) {
     let msg = FromServerStreamingMessage::DataError(error);
     _ = send_message(socket, msg).await;
+}
+
+async fn process_client_message(
+    text: String,
+    config: &tokens::Config,
+    vehicles: &[Vehicle],
+) -> Result<(Option<VehicleGuid>, Option<Subscription>), SocketError> {
+    // // Parse the subscription message.
+    let message = serde_json::from_str::<ToServerStreamingMessage>(&text).map_err(|err| {
+        error!("Could not parse subscription message: {err}");
+        let error = "Could not parse subscription message".to_string();
+        SocketError::NotReportableError(error)
+    })?;
+
+    match message {
+        ToServerStreamingMessage::DataSubscribeOauth { token, value, tag } => {
+            let claims = validate_access_token(&token, config).map_err(|err| {
+                error!("Invalid token: {err}");
+                let error = DataError::new(&tag, ErrorType::ClientError, "Invalid token");
+                SocketError::ReportableError(error)
+            })?;
+
+            // Validate the claims
+            if !claims
+                .scopes
+                .contains(&tokens::ScopeEnum::VehicleDeviceData)
+            {
+                let error = DataError::new(&tag, ErrorType::ClientError, "Invalid scope");
+                return Err(SocketError::ReportableError(error));
+            }
+
+            // The vehicle_id is the tag
+            let vehicle_id: VehicleGuid = tag.clone().parse().map_err(|err| {
+                error!("Vehicle id is not an integer: {err}");
+                let error = DataError::new(&tag, ErrorType::ClientError, "Invalid vehicle id");
+                SocketError::ReportableError(error)
+            })?;
+
+            // Find the vehicle
+            let maybe_vehicle = vehicles.iter().find(|v| v.vehicle_id == vehicle_id);
+            let vehicle = match maybe_vehicle {
+                Some(vehicle) => vehicle,
+                None => {
+                    error!("Vehicle id not found: {vehicle_id:?}");
+                    let error = DataError::new(&tag, ErrorType::ClientError, "Invalid vehicle id");
+                    return Err(SocketError::ReportableError(error));
+                }
+            };
+
+            // Deserialize the incoming data
+            let fields = Arc::new(deserialize_field_names(&value));
+
+            // Subscribe to the vehicle
+            let rx = vehicle.command.subscribe().await?;
+
+            let add = Subscription {
+                vehicle_id,
+                fields,
+                rx,
+            };
+            Ok((None, Some(add)))
+        }
+        ToServerStreamingMessage::DataUnsubscribe { tag } => {
+            let vehicle_id: VehicleGuid = tag.clone().parse().map_err(|err| {
+                error!("Vehicle id is not an integer: {err}");
+                let error = DataError::new(&tag, ErrorType::ClientError, "Invalid vehicle id");
+                SocketError::ReportableError(error)
+            })?;
+
+            Ok((Some(vehicle_id), None))
+        }
+    }
 }

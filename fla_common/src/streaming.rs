@@ -69,6 +69,8 @@ pub enum ToServerStreamingMessage {
         value: String,
         tag: String,
     },
+    #[serde(rename = "data:unsubscribe")]
+    DataUnsubscribe { tag: String },
 }
 
 #[derive(Deserialize, Serialize, Debug)]

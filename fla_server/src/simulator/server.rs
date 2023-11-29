@@ -354,6 +354,7 @@ pub fn start(vehicle: VehicleDefinition) -> CommandSender {
                     data.charge_state = charge_state;
 
                     let streaming_data: StreamingData = (&data).into();
+                    debug!("Streaming data, time {:#?}", streaming_data.time);
 
                     if let Some(s_tx) = &maybe_s_tx {
                         // It is not an error if we are sending and nobody is listening.

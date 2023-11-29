@@ -43,7 +43,7 @@ impl VehicleId {
 }
 
 /// A extended vehicle ID
-#[derive(Debug, Serialize, Deserialize, Clone, Copy, Eq, PartialEq)]
+#[derive(Debug, Serialize, Deserialize, Clone, Copy, Eq, PartialEq, Hash)]
 pub struct VehicleGuid(u64);
 
 impl FromStr for VehicleGuid {
