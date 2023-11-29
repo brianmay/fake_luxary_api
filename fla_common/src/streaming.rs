@@ -44,7 +44,7 @@ impl DataError {
     pub fn offline(id: VehicleGuid) -> Self {
         Self::new(
             id.to_string(),
-            ErrorType::VehicleDisconnected,
+            ErrorType::VehicleError,
             "Vehicle is offline",
         )
     }
