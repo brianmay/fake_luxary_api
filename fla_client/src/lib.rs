@@ -274,7 +274,7 @@ impl Client {
     }
 
     pub async fn get_vehicles(&self) -> Result<VehiclesResponse, reqwest::Error> {
-        let url = format!("{}api/1/vehicles", self.owner_url);
+        let url = format!("{}api/1/products", self.owner_url);
         let text = reqwest::Client::new()
             .get(url)
             .header("Content-Type", "application/json")
