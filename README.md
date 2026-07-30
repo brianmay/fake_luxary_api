@@ -7,6 +7,10 @@ Uses older REST based API. Future of this API uncertain.
 Should, be considered alpha quality, as desired functionality not
 implemented yet and future refactoring may change APIs.
 
+## License
+
+This project is licensed under the [GNU Affero General Public License v3.0 or later](COPYING.txt) (AGPL-3.0-or-later).
+
 ## Usage
 
 Run the simulator server:
